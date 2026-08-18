@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess, validateFen } from 'chess.js';
 import { ChessBoard } from '../components/board/ChessBoard';
 import { PromotionPicker } from '../components/game/PromotionPicker';
@@ -11,29 +11,11 @@ import { useChess } from '../state/chessStore';
 import { useNav } from '../state/navStore';
 import { useSettings } from '../state/settingsStore';
 import { scoreToCp } from '../lib/engine/analysis';
+import { explainLine } from '../lib/engine/explain';
 import { START_FEN, type Color, type PieceSymbol, type Square } from '../lib/chess/types';
 import { rungName } from '../lib/engine/calibration';
 
 const EDITOR_PIECES: PieceSymbol[] = ['k', 'q', 'r', 'b', 'n', 'p'];
-
-function uciToSan(fen: string, pv: string[], maxLen = 8): string {
-  try {
-    const chess = new Chess(fen);
-    const sans: string[] = [];
-    for (const uci of pv.slice(0, maxLen)) {
-      const mv = chess.move({
-        from: uci.slice(0, 2),
-        to: uci.slice(2, 4),
-        promotion: uci[4] as PieceSymbol | undefined,
-      });
-      if (!mv) break;
-      sans.push(mv.san);
-    }
-    return sans.join(' ');
-  } catch {
-    return pv.slice(0, maxLen).join(' ');
-  }
-}
 
 export function AnalysisView() {
   const a = useAnalysis();
@@ -64,14 +46,35 @@ export function AnalysisView() {
   const turn = (a.fen.split(' ')[1] ?? 'w') as Color;
   const bestLine = a.lines[0];
   const evalCp = bestLine ? (turn === 'w' ? scoreToCp(bestLine) : -scoreToCp(bestLine)) : null;
-  const bestArrow = useMemo(() => {
-    if (!a.engineOn || !bestLine || bestLine.pv.length === 0) return null;
-    const uci = bestLine.pv[0];
-    if (uci.length < 4) return null;
-    return { from: uci.slice(0, 2), to: uci.slice(2, 4) };
-  }, [a.engineOn, bestLine]);
+
+  // Best moves at a glance: each engine line explained in plain language.
+  const explained = useMemo(() => {
+    if (!a.engineOn || a.editing) return [];
+    return a.lines
+      .filter(Boolean)
+      .map((line) => ({ line, ex: explainLine(a.fen, line) }))
+      .filter((x): x is { line: (typeof a.lines)[number]; ex: NonNullable<ReturnType<typeof explainLine>> } => !!x.ex);
+  }, [a.engineOn, a.editing, a.lines, a.fen]);
+
+  const suggestionArrows = useMemo(
+    () =>
+      explained.map((x, i) => ({
+        from: x.line.pv[0].slice(0, 2),
+        to: x.line.pv[0].slice(2, 4),
+        rank: i,
+      })),
+    [explained],
+  );
 
   // ---- editor helpers (operate directly on the FEN) ----
+  const boardWrapRef = useRef<HTMLDivElement | null>(null);
+  const [paletteDrag, setPaletteDrag] = useState<{
+    piece: PieceSymbol;
+    color: Color;
+    x: number;
+    y: number;
+  } | null>(null);
+
   const editorApply = (fn: (chess: Chess) => void) => {
     const chess = new Chess();
     chess.clear();
@@ -106,6 +109,40 @@ export function AnalysisView() {
     });
   };
 
+  /** Drag a fresh piece from the palette straight onto a square. */
+  const dragMovedRef = useRef(false);
+  const startPaletteDrag = (
+    e: React.PointerEvent,
+    piece: PieceSymbol,
+    color: Color,
+  ) => {
+    e.preventDefault();
+    dragMovedRef.current = false;
+    setPaletteDrag({ piece, color, x: e.clientX, y: e.clientY });
+    const onMove = (ev: PointerEvent) => {
+      dragMovedRef.current = true;
+      setPaletteDrag((d) => (d ? { ...d, x: ev.clientX, y: ev.clientY } : d));
+    };
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      setPaletteDrag(null);
+      const rect = boardWrapRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0) return;
+      const fx = Math.floor(((ev.clientX - rect.left) / rect.width) * 8);
+      const fy = Math.floor(((ev.clientY - rect.top) / rect.height) * 8);
+      if (fx < 0 || fx > 7 || fy < 0 || fy > 7) return;
+      const file = orientation === 'w' ? fx : 7 - fx;
+      const rank = orientation === 'w' ? 7 - fy : fy;
+      const sq = 'abcdefgh'[file] + String(rank + 1);
+      editorApply((chess) => {
+        chess.remove(sq as any);
+        chess.put({ type: piece, color }, sq as any);
+      });
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+  };
+
   const editorSetField = (idx: number, value: string) => {
     const parts = a.fen.split(' ');
     parts[idx] = value;
@@ -132,6 +169,8 @@ export function AnalysisView() {
     const fen = a.fen;
     a.setEditing(false);
     a.setRoot(fen, fen === START_FEN ? 'standard' : 'custom');
+    // Best moves should appear at a glance the moment the position is built.
+    if (!useAnalysis.getState().engineOn) a.toggleEngine();
   };
 
   const attemptMove = (from: Square, to: Square) => {
@@ -173,6 +212,17 @@ export function AnalysisView() {
 
   return (
     <div className="analysis-view">
+      {paletteDrag && (
+        <div className="drag-ghost" style={{ left: paletteDrag.x, top: paletteDrag.y }}>
+          <svg viewBox="0 0 100 100">
+            <PieceGlyph
+              type={paletteDrag.piece}
+              color={paletteDrag.color}
+              style={settings.pieceStyle}
+            />
+          </svg>
+        </div>
+      )}
       <div className="play-header">
         <button className="btn subtle" onClick={() => nav.go('home')}>
           ‹ Home
@@ -185,7 +235,7 @@ export function AnalysisView() {
 
       <div className="board-row">
         {!a.editing && a.engineOn && <EvalBar cp={evalCp} orientation={orientation} />}
-        <div className="board-wrap" data-theme-board={settings.boardTheme}>
+        <div className="board-wrap" data-theme-board={settings.boardTheme} ref={boardWrapRef}>
           <ChessBoard
             fen={a.fen}
             orientation={orientation}
@@ -199,7 +249,7 @@ export function AnalysisView() {
                   }
                 : null
             }
-            arrow={bestArrow}
+            arrows={suggestionArrows}
             legalTargetsFor={(sq) => (a.editing ? [] : a.legalTargets(sq))}
             onMove={({ from, to }) => attemptMove(from, to)}
             onEditorDrop={a.editing ? editorDrop : undefined}
@@ -220,6 +270,10 @@ export function AnalysisView() {
 
       {a.editing ? (
         <div className="editor-panel">
+          <p className="field-hint">
+            Drag a piece from the tray onto the board (or tap it, then tap squares). Drag pieces
+            off the board to remove them.
+          </p>
           <div className="palette">
             {(['w', 'b'] as const).map((c) => (
               <div key={c} className="palette-row">
@@ -230,7 +284,14 @@ export function AnalysisView() {
                     <button
                       key={p}
                       className={`palette-piece ${active ? 'active' : ''}`}
-                      onClick={() => setPalette(active ? null : { piece: p, color: c })}
+                      onPointerDown={(e) => startPaletteDrag(e, p, c)}
+                      onClick={() => {
+                        if (dragMovedRef.current) {
+                          dragMovedRef.current = false;
+                          return; // this click was the tail end of a drag
+                        }
+                        setPalette(active ? null : { piece: p, color: c });
+                      }}
                     >
                       <svg viewBox="0 0 100 100">
                         <PieceGlyph type={p} color={c} style={settings.pieceStyle} />
@@ -317,10 +378,12 @@ export function AnalysisView() {
                 ▶
               </button>
             </div>
+            {a.engineOn && explained.length === 0 && (
+              <p className="field-hint">Thinking…</p>
+            )}
             {a.engineOn &&
-              a.lines.filter(Boolean).map((line) => {
-                const cp = scoreToCp(line);
-                const white = turn === 'w' ? cp : -cp;
+              explained.map(({ line, ex }, i) => {
+                const white = ex.evalWhiteCp;
                 const label =
                   line.scoreMate !== undefined
                     ? `#${Math.abs(line.scoreMate)}`
@@ -328,17 +391,22 @@ export function AnalysisView() {
                 return (
                   <button
                     key={line.multipv}
-                    className="engine-line"
+                    className={`engine-line rank-${Math.min(2, i)}`}
                     onClick={() => {
                       const uci = line.pv[0];
                       if (uci) attemptMove(uci.slice(0, 2), uci.slice(2, 4));
                     }}
                   >
-                    <span className={`line-eval ${white >= 0 ? 'pos' : 'neg'}`}>
-                      {white >= 0 && line.scoreMate === undefined ? '+' : ''}
-                      {label}
-                    </span>
-                    <span className="line-pv">{uciToSan(a.fen, line.pv)}</span>
+                    <div className="line-top">
+                      <span className={`line-rank r${Math.min(2, i)}`}>{i + 1}</span>
+                      <span className="line-san">{ex.san}</span>
+                      <span className={`line-eval ${white >= 0 ? 'pos' : 'neg'}`}>
+                        {white >= 0 && line.scoreMate === undefined ? '+' : ''}
+                        {label}
+                      </span>
+                    </div>
+                    <p className="line-explain">{ex.text}</p>
+                    <span className="line-pv">{ex.continuation}</span>
                   </button>
                 );
               })}
@@ -366,7 +434,7 @@ export function AnalysisView() {
 
           <div className="analysis-toolbar">
             <button className="btn subtle" onClick={() => a.setEditing(true)}>
-              Edit board
+              ✎ Build position
             </button>
             <button className="btn subtle" onClick={() => setShowPlayFrom(!showPlayFrom)}>
               Play from here

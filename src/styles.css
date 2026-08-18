@@ -353,6 +353,41 @@ textarea {
 .arrow-best-head {
   fill: rgb(87 178 106 / 0.75);
 }
+.arrow-rank0 {
+  stroke: rgb(87 178 106 / 0.85);
+  stroke-width: 0.17;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.arrow-rank0-head { fill: rgb(87 178 106 / 0.85); }
+.arrow-rank1 {
+  stroke: rgb(216 185 63 / 0.6);
+  stroke-width: 0.13;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.arrow-rank1-head { fill: rgb(216 185 63 / 0.6); }
+.arrow-rank2 {
+  stroke: rgb(141 141 149 / 0.5);
+  stroke-width: 0.11;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.arrow-rank2-head { fill: rgb(141 141 149 / 0.5); }
+
+.drag-ghost {
+  position: fixed;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -60%);
+  pointer-events: none;
+  z-index: 60;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.4));
+}
+.drag-ghost svg {
+  width: 100%;
+  height: 100%;
+}
 
 /* checkers pieces */
 .checker-white {
@@ -848,23 +883,55 @@ textarea {
   font-size: 0.8rem;
 }
 .engine-line {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
+  display: block;
   width: 100%;
-  background: none;
-  border: none;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   color: var(--text);
-  padding: 6px 4px;
+  padding: 8px 10px;
   cursor: pointer;
   text-align: left;
-  border-top: 1px solid var(--border);
-  margin-top: 6px;
+  margin-top: 8px;
+}
+.engine-line.rank-0 {
+  border-color: rgb(87 178 106 / 0.6);
+}
+.line-top {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.line-rank {
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
+  color: #fff;
+}
+.line-rank.r0 { background: #57b26a; }
+.line-rank.r1 { background: #d8b93f; color: #222; }
+.line-rank.r2 { background: #8d8d95; }
+.line-san {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.line-explain {
+  margin: 4px 0 2px;
+  font-size: 0.85rem;
+  color: var(--text);
 }
 .line-eval {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   min-width: 3.4em;
+  margin-left: auto;
 }
 .line-eval.pos {
   color: var(--good);

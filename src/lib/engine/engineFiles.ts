@@ -3,8 +3,10 @@
  * The multi-threaded build needs crossOriginIsolated (COOP/COEP headers);
  * the single-threaded build is the universal fallback.
  */
-export const ENGINE_MULTI = '/engine/stockfish-17.1-lite-51f59da.js';
-export const ENGINE_SINGLE = '/engine/stockfish-17.1-lite-single-03e3232.js';
+const BASE = typeof import.meta.env !== 'undefined' ? (import.meta.env.BASE_URL ?? '/') : '/';
+
+export const ENGINE_MULTI = `${BASE}engine/stockfish-17.1-lite-51f59da.js`;
+export const ENGINE_SINGLE = `${BASE}engine/stockfish-17.1-lite-single-03e3232.js`;
 
 export function engineScriptUrl(): string {
   const isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;

@@ -20,6 +20,8 @@ const isolationHeaders = {
 };
 
 export default defineConfig({
+  // Subpath hosting (e.g. GitHub Pages): BASE_PATH=/repo-name/ npm run build
+  base: process.env.BASE_PATH || '/',
   plugins: [
     react(),
     VitePWA({
@@ -41,12 +43,15 @@ export default defineConfig({
         background_color: '#16191d',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
+        // relative URLs resolve against the manifest location, so subpath
+        // hosting (GitHub Pages) works without changes
+        start_url: '.',
+        scope: '.',
         icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           {
-            src: '/icons/icon-maskable-512.png',
+            src: 'icons/icon-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',

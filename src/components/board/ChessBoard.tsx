@@ -28,6 +28,8 @@ export interface ChessBoardProps {
   premove?: { from: Square; to: Square } | null;
   hint?: { from: Square; to: Square } | null;
   arrow?: { from: Square; to: Square } | null;
+  /** ranked suggestion arrows (0 = best); rendered under `arrow`/`hint` */
+  arrows?: Array<{ from: Square; to: Square; rank: number }>;
   legalTargetsFor?: (from: Square) => UiMove[];
   onMove?: (intent: BoardMoveIntent) => void;
   /** editor mode: report raw drops anywhere incl. off-board */
@@ -117,7 +119,7 @@ function trackPieces(
 export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
   const {
     fen, orientation, interactive, movableColor = 'both',
-    lastMove, checkSquare, premove, hint, arrow,
+    lastMove, checkSquare, premove, hint, arrow, arrows,
     legalTargetsFor, onMove, onEditorDrop, onSquareTap,
   } = props;
   const settings = useSettings();
@@ -297,11 +299,12 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
     return <rect key={key ?? `${cls}-${sq}`} x={x} y={y} width={1} height={1} className={cls} />;
   };
 
-  const renderArrow = (a: { from: Square; to: Square }, cls: string) => {
+  const renderArrow = (a: { from: Square; to: Square }, cls: string, key?: string) => {
     const [x1, y1] = toXY(a.from);
     const [x2, y2] = toXY(a.to);
     return (
       <line
+        key={key}
         x1={x1 + 0.5}
         y1={y1 + 0.5}
         x2={x2 + 0.5}
@@ -345,6 +348,19 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
         >
           <path d="M0,0.6 L3,2 L0,3.4 Z" className="arrow-best-head" />
         </marker>
+        {[0, 1, 2].map((r) => (
+          <marker
+            key={r}
+            id={`arrowhead-arrow-rank${r}`}
+            markerWidth={4}
+            markerHeight={4}
+            refX={2.4}
+            refY={2}
+            orient="auto"
+          >
+            <path d="M0,0.6 L3,2 L0,3.4 Z" className={`arrow-rank${r}-head`} />
+          </marker>
+        ))}
       </defs>
 
       <g>{cells}</g>
@@ -394,6 +410,12 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
         })}
       </g>
 
+      {arrows &&
+        [...arrows]
+          .sort((a, b) => b.rank - a.rank) // draw the best arrow last (on top)
+          .map((a) =>
+            renderArrow(a, `arrow-rank${Math.min(2, a.rank)}`, `rk${a.rank}-${a.from}${a.to}`),
+          )}
       {hint && renderArrow(hint, 'arrow-hint')}
       {arrow && renderArrow(arrow, 'arrow-best')}
     </svg>
