@@ -35,8 +35,7 @@ export function AnalysisView() {
   // open a saved game passed via nav params
   const gameId = nav.params.gameId;
   useEffect(() => {
-    if (gameId) void a.loadSavedGame(gameId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (gameId) void useAnalysis.getState().loadSavedGame(gameId);
   }, [gameId]);
 
   // stop the engine when leaving the view
@@ -48,13 +47,17 @@ export function AnalysisView() {
   const evalCp = bestLine ? (turn === 'w' ? scoreToCp(bestLine) : -scoreToCp(bestLine)) : null;
 
   // Best moves at a glance: each engine line explained in plain language.
+  const { engineOn, editing, lines, fen: currentFen } = a;
   const explained = useMemo(() => {
-    if (!a.engineOn || a.editing) return [];
-    return a.lines
+    if (!engineOn || editing) return [];
+    return lines
       .filter(Boolean)
-      .map((line) => ({ line, ex: explainLine(a.fen, line) }))
-      .filter((x): x is { line: (typeof a.lines)[number]; ex: NonNullable<ReturnType<typeof explainLine>> } => !!x.ex);
-  }, [a.engineOn, a.editing, a.lines, a.fen]);
+      .map((line) => ({ line, ex: explainLine(currentFen, line) }))
+      .filter(
+        (x): x is { line: (typeof lines)[number]; ex: NonNullable<ReturnType<typeof explainLine>> } =>
+          !!x.ex,
+      );
+  }, [engineOn, editing, lines, currentFen]);
 
   const suggestionArrows = useMemo(
     () =>
