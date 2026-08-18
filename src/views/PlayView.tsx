@@ -91,6 +91,13 @@ export function PlayView() {
     );
   };
 
+  const VARIANT_LABEL: Record<string, string> = {
+    standard: 'Standard',
+    chess960: 'Chess960',
+    'rbc-chaos': 'Really Bad Chess',
+    'rbc-handicap': 'Really Bad Chess',
+    custom: 'Custom start',
+  };
   const ratedTag = config.rated ? 'Rated' : 'Casual';
   const showEval =
     settings.evalBar && !config.rated && (config.mode === 'eve' || config.mode === 'hve');
@@ -102,7 +109,7 @@ export function PlayView() {
           ‹ Home
         </button>
         <span className="game-tag">
-          {ratedTag} · {config.variant}
+          {ratedTag} · {VARIANT_LABEL[config.variant] ?? config.variant}
         </span>
         {config.mode === 'eve' && (
           <div className="eve-controls">

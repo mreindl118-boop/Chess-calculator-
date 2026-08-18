@@ -3,9 +3,8 @@ import type { Color, PieceSymbol } from '../../lib/chess/types';
 import type { PieceStyle } from '../../state/settingsStore';
 
 /**
- * Original piece glyphs drawn on a 100x100 box (no third-party piece sets).
- * 'classic' is a silhouette set built from primitives; 'minimal' is a filled
- * roundel with a letterform — extremely readable at small sizes.
+ * Original piece set drawn on a 100x100 box — flat, modern silhouettes with a
+ * soft ground shadow. No third-party piece art.
  */
 
 interface GlyphProps {
@@ -14,119 +13,141 @@ interface GlyphProps {
   style: PieceStyle;
 }
 
-const LIGHT_FILL = '#f4f0e6';
-const LIGHT_STROKE = '#3a3630';
-const DARK_FILL = '#33302c';
-const DARK_STROKE = '#0f0e0c';
-const DARK_DETAIL = '#8f887c';
+const W = { fill: '#f8f4ea', stroke: '#3f3830', detail: '#b3a894' };
+const B = { fill: '#2f2b27', stroke: '#171310', detail: '#9b917f' };
 
 function palette(color: Color) {
-  return color === 'w'
-    ? { fill: LIGHT_FILL, stroke: LIGHT_STROKE, detail: LIGHT_STROKE }
-    : { fill: DARK_FILL, stroke: DARK_STROKE, detail: DARK_DETAIL };
+  return color === 'w' ? W : B;
 }
 
-const BASE = 'M22 88 Q22 80 30 78 L70 78 Q78 80 78 88 L78 90 L22 90 Z';
+const Shadow = () => <ellipse cx={50} cy={87} rx={25} ry={4.5} fill="rgba(0,0,0,0.20)" />;
 
 function Classic({ type, color }: { type: PieceSymbol; color: Color }) {
   const p = palette(color);
   const common = {
     fill: p.fill,
     stroke: p.stroke,
-    strokeWidth: 3.5,
+    strokeWidth: 3,
     strokeLinejoin: 'round' as const,
     strokeLinecap: 'round' as const,
   };
+  const detail = {
+    fill: 'none',
+    stroke: p.detail,
+    strokeWidth: 2.4,
+    strokeLinecap: 'round' as const,
+  };
+
   switch (type) {
     case 'p':
       return (
-        <g {...common}>
-          <circle cx={50} cy={30} r={12} />
-          <path d="M38 62 Q38 46 50 44 Q62 46 62 62 L66 78 L34 78 Z" />
-          <path d={BASE} />
+        <g>
+          <Shadow />
+          <g {...common}>
+            <path d="M50 43 C41 43 36 49 36 54 C36 58 38.5 61.5 42 63.5 L37.5 75 C36 79 38.5 81 43 81 L57 81 C61.5 81 64 79 62.5 75 L58 63.5 C61.5 61.5 64 58 64 54 C64 49 59 43 50 43 Z" />
+            <circle cx={50} cy={32} r={11.5} />
+            <path d="M31 84 Q31 80 36 80 L64 80 Q69 80 69 84 L69 85.5 Q69 87 67 87 L33 87 Q31 87 31 85.5 Z" />
+          </g>
         </g>
       );
+
     case 'r':
       return (
-        <g {...common}>
-          <path d="M30 24 L30 36 L37 40 L34 72 L66 72 L63 40 L70 36 L70 24 L60 24 L60 30 L55 30 L55 24 L45 24 L45 30 L40 30 L40 24 Z" />
-          <path d={BASE} />
+        <g>
+          <Shadow />
+          <g {...common}>
+            <path d="M31 18 L41 18 L41 25 L46 25 L46 18 L54 18 L54 25 L59 25 L59 18 L69 18 L69 32 L63 38 L63 66 L69 73 L31 73 L37 66 L37 38 L31 32 Z" />
+            <path d="M28 84 Q28 79 34 79 L66 79 Q72 79 72 84 L72 85.5 Q72 87 70 87 L30 87 Q28 87 28 85.5 Z" />
+          </g>
+          <path d="M41 38 L59 38 M41 66 L59 66" {...detail} />
         </g>
       );
+
     case 'n':
       return (
-        <g {...common}>
-          <path d="M33 78 L33 66 Q33 46 46 38 Q50 30 50 22 Q56 24 58 30 Q74 36 76 52 Q77 60 74 66 L64 62 Q64 52 56 50 Q42 58 44 78 Z" />
-          <path d="M60 34 Q66 36 68 42" fill="none" />
-          <circle cx={58} cy={38} r={2.2} fill={p.stroke} stroke="none" />
-          <path d={BASE} />
+        <g>
+          <Shadow />
+          <g {...common}>
+            <path d="M31 80 C31 64 34 54 42 47 C47 42.5 50 36 50 29 L51 21 C54 23 56.5 26 58 30 C67 33 73 41 75.5 51 C77 57.5 77 63 75.5 67 C74.5 69.7 71.5 69.6 70 67 L66.5 61 C65.5 59.2 63.5 58.8 61.5 60 L58 62 C55 63.7 52 62.3 52 59 C52 57 52.8 55.4 54.5 54 C50 55.5 46.5 59 45 64 C44 67.4 43.6 72 43.6 80 Z" />
+            <path d="M27 84 Q27 79 33 79 L67 79 Q73 79 73 84 L73 85.5 Q73 87 71 87 L29 87 Q27 87 27 85.5 Z" />
+          </g>
+          <circle cx={55.5} cy={35} r={2.1} fill={p.stroke} stroke="none" />
+          <path d="M49 27 C47 31 44 34 40 36" {...detail} />
         </g>
       );
+
     case 'b':
       return (
-        <g {...common}>
-          <circle cx={50} cy={20} r={5} />
-          <path d="M50 26 Q66 38 64 54 Q62 66 50 68 Q38 66 36 54 Q34 38 50 26 Z" />
-          <path d="M50 38 L50 52 M44 45 L56 45" fill="none" strokeWidth={3} />
-          <path d="M38 78 L42 68 L58 68 L62 78 Z" />
-          <path d={BASE} />
+        <g>
+          <Shadow />
+          <g {...common}>
+            <path d="M50 22 C59 31 64.5 40 64.5 50 C64.5 60 58.5 66.5 50 66.5 C41.5 66.5 35.5 60 35.5 50 C35.5 40 41 31 50 22 Z" />
+            <circle cx={50} cy={14.5} r={5} />
+            <path d="M37 79 L41.5 68 Q45.5 71 50 71 Q54.5 71 58.5 68 L63 79 Z" />
+            <path d="M29 84 Q29 80 35 80 L65 80 Q71 80 71 84 L71 85.5 Q71 87 69 87 L31 87 Q29 87 29 85.5 Z" />
+          </g>
+          <path d="M50 36 L50 52 M43.5 44 L56.5 44" {...detail} />
         </g>
       );
+
     case 'q':
       return (
-        <g {...common}>
-          <path d="M26 34 L36 60 L32 72 L68 72 L64 60 L74 34 L62 48 L57 30 L50 46 L43 30 L38 48 Z" />
-          <circle cx={26} cy={30} r={4} />
-          <circle cx={43} cy={25} r={4} />
-          <circle cx={57} cy={25} r={4} />
-          <circle cx={74} cy={30} r={4} />
-          <circle cx={50} cy={20} r={4} />
-          <path d={BASE} />
+        <g>
+          <Shadow />
+          <g {...common}>
+            <path d="M29.5 40 L36 62 L33 72 L67 72 L64 62 L70.5 40 L60 51 L55.5 33 L50 48 L44.5 33 L40 51 Z" />
+            <circle cx={29} cy={35} r={4} />
+            <circle cx={43.5} cy={27.5} r={4} />
+            <circle cx={56.5} cy={27.5} r={4} />
+            <circle cx={71} cy={35} r={4} />
+            <circle cx={50} cy={23} r={4} />
+            <path d="M28 84 Q28 79 34 79 L66 79 Q72 79 72 84 L72 85.5 Q72 87 70 87 L30 87 Q28 87 28 85.5 Z" />
+          </g>
+          <path d="M38 66 Q50 61 62 66" {...detail} />
         </g>
       );
+
     case 'k':
       return (
-        <g {...common}>
-          <path d="M46 14 L54 14 L54 20 L60 20 L60 28 L54 28 L54 34 L46 34 L46 28 L40 28 L40 20 L46 20 Z" />
-          <path d="M34 40 Q50 30 66 40 L70 66 L64 74 L36 74 L30 66 Z" />
-          <path d="M40 52 Q50 44 60 52" fill="none" />
-          <path d={BASE} />
+        <g>
+          <Shadow />
+          <g {...common}>
+            <path d="M46.5 11 L53.5 11 L53.5 17 L59.5 17 L59.5 24 L53.5 24 L53.5 30 L46.5 30 L46.5 24 L40.5 24 L40.5 17 L46.5 17 Z" />
+            <path d="M50 32 C61 32 68.5 38.5 69.5 47 L71 62 C71.5 68 68 72 62 72 L38 72 C32 72 28.5 68 29 62 L30.5 47 C31.5 38.5 39 32 50 32 Z" />
+            <path d="M28 84 Q28 79 34 79 L66 79 Q72 79 72 84 L72 85.5 Q72 87 70 87 L30 87 Q28 87 28 85.5 Z" />
+          </g>
+          <path d="M37 49 Q50 42 63 49 M36.5 60 Q50 53 63.5 60" {...detail} />
         </g>
       );
   }
 }
 
-const LETTERS: Record<PieceSymbol, string> = {
-  p: '',
-  n: 'N',
-  b: 'B',
-  r: 'R',
-  q: 'Q',
-  k: 'K',
-};
+const LETTERS: Record<PieceSymbol, string> = { p: '', n: 'N', b: 'B', r: 'R', q: 'Q', k: 'K' };
 
 function Minimal({ type, color }: { type: PieceSymbol; color: Color }) {
   const p = palette(color);
   if (type === 'p') {
     return (
       <g>
-        <circle cx={50} cy={54} r={22} fill={p.fill} stroke={p.stroke} strokeWidth={4} />
-        <circle cx={50} cy={54} r={9} fill="none" stroke={p.detail} strokeWidth={3} />
+        <Shadow />
+        <circle cx={50} cy={52} r={22} fill={p.fill} stroke={p.stroke} strokeWidth={4} />
+        <circle cx={50} cy={52} r={9} fill="none" stroke={p.detail} strokeWidth={3} />
       </g>
     );
   }
   return (
     <g>
-      <circle cx={50} cy={52} r={30} fill={p.fill} stroke={p.stroke} strokeWidth={4} />
+      <Shadow />
+      <circle cx={50} cy={50} r={30} fill={p.fill} stroke={p.stroke} strokeWidth={4} />
       <text
         x={50}
-        y={52}
+        y={51}
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize={34}
-        fontFamily="Georgia, 'Times New Roman', serif"
+        fontSize={32}
+        fontFamily="'Outfit', Georgia, serif"
         fontWeight={700}
-        fill={color === 'w' ? LIGHT_STROKE : DARK_DETAIL}
+        fill={color === 'w' ? W.stroke : B.detail}
       >
         {LETTERS[type]}
       </text>
