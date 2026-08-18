@@ -14,6 +14,7 @@ import { StatsView } from './views/StatsView';
 import { PuzzlesView } from './views/PuzzlesView';
 import { SettingsView } from './views/SettingsView';
 import { UpdateToast } from './components/UpdateToast';
+import { warmUpEngines } from './state/engineHub';
 
 const TABS: Array<{ view: View; label: string; icon: string }> = [
   { view: 'home', label: 'Play', icon: '♞' },
@@ -29,8 +30,11 @@ export default function App() {
   const profiles = useProfiles();
 
   useEffect(() => {
-    void settings.load();
-    void profiles.load();
+    void (async () => {
+      await settings.load(); // engine choice depends on the threaded-engine setting
+      void profiles.load();
+      void warmUpEngines();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

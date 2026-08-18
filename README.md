@@ -58,9 +58,14 @@ npm run build      # production build incl. PWA precache
 ```
 
 The dev/preview servers send COOP/COEP headers so `crossOriginIsolated` is
-true and the **multi-threaded** Stockfish build is used; without isolation
-the app silently falls back to the single-threaded build. In production the
-headers come from `public/_headers` (Cloudflare Pages).
+true; in production the headers come from `public/_headers` (Cloudflare
+Pages). Both Stockfish builds ship: the app defaults to the single-threaded
+build everywhere (reliability first — wasm pthread spawning proved unstable
+in some Chromium environments, and a spawn-failure storm can wedge the page),
+with the **multi-threaded** analysis engine available as a Settings toggle
+when isolation is available. If a threaded engine does hit pthread failures
+at runtime it detects the failure signature and self-heals onto the
+single-threaded build, replaying its options and any interrupted search.
 
 Engine binaries are not committed — `scripts/copy-engine.mjs` copies the
 lite NNUE builds out of the `stockfish` npm package before dev/build.

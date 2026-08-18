@@ -17,6 +17,14 @@ export interface Settings {
   autoFlipPvP: boolean;
   evalBar: boolean;
   coordinates: boolean;
+  /**
+   * Use the multi-threaded Stockfish build for analysis (needs
+   * crossOriginIsolated). Off by default: wasm pthread spawning is unstable
+   * in some Chromium environments and a failure can wedge the page; the
+   * engine self-heals onto the single-threaded build when it detects that,
+   * but reliability-first is the default. Takes effect for the next analysis.
+   */
+  threadedEngine: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -30,6 +38,7 @@ const DEFAULTS: Settings = {
   autoFlipPvP: false,
   evalBar: true,
   coordinates: true,
+  threadedEngine: false,
 };
 
 interface SettingsState extends Settings {
@@ -62,11 +71,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
 function pick(s: SettingsState): Settings {
   const {
     boardTheme, pieceStyle, darkMode, sound, haptics,
-    legalDots, premove, autoFlipPvP, evalBar, coordinates,
+    legalDots, premove, autoFlipPvP, evalBar, coordinates, threadedEngine,
   } = s;
   return {
     boardTheme, pieceStyle, darkMode, sound, haptics,
-    legalDots, premove, autoFlipPvP, evalBar, coordinates,
+    legalDots, premove, autoFlipPvP, evalBar, coordinates, threadedEngine,
   };
 }
 

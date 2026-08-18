@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useSettings, type BoardTheme, type PieceStyle } from '../state/settingsStore';
 import { exportBackup, importBackup, type BackupBlob } from '../lib/db/schema';
 import { useProfiles } from '../state/profilesStore';
+import { resetAnalysisEngine } from '../state/engineHub';
 
 declare const __APP_VERSION__: string;
 declare const __BUILD_TIME__: string;
@@ -102,6 +103,30 @@ export function SettingsView() {
         {toggle('darkMode', 'Dark mode')}
         {toggle('sound', 'Sounds')}
         {toggle('haptics', 'Haptics', 'Vibration on moves (Android)')}
+      </section>
+
+      <section>
+        <h3>Engine</h3>
+        <label className="toggle setting-row">
+          <div>
+            <span>Multi-threaded analysis engine</span>
+            <p className="field-hint">
+              Faster analysis on capable browsers (needs cross-origin isolation
+              {typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated
+                ? ' — available here'
+                : ' — not available here'}
+              ). If threads misbehave the engine falls back automatically.
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={s.threadedEngine}
+            onChange={(e) => {
+              s.update({ threadedEngine: e.target.checked });
+              resetAnalysisEngine();
+            }}
+          />
+        </label>
       </section>
 
       <section>

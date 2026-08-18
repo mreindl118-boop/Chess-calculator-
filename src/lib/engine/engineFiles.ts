@@ -15,6 +15,7 @@ export function engineThreads(): number {
   const isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
   if (!isolated) return 1;
   const hw = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency ?? 2) : 2;
-  // Leave headroom for the UI thread and the OS.
-  return Math.max(1, Math.min(4, hw - 2));
+  // Two engine processes can search concurrently (play + analysis) and the
+  // UI thread must never starve — cap each engine at 2 threads.
+  return Math.max(1, Math.min(2, hw - 2));
 }
