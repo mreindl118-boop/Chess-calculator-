@@ -1,27 +1,24 @@
-name: Deploy to GitHub Pages
+name: Publish app to GitHub Pages
 
-# Manual-only: GitHub Pages cannot publish from a private repo on the free
-# plan, so automatic runs would fail on every push (and email the owner).
-# If the repo ever becomes public (or gets GitHub Pro with Pages enabled),
-# run this workflow from the Actions tab — or restore the push trigger.
+# Publishes the built app to the gh-pages branch, which GitHub Pages serves
+# at https://mreindl118-boop.github.io/Chess-calculator-/
+# (The actions/deploy-pages route is not used: creating the Pages site via
+# the workflow token is not permitted; branch-based Pages auto-enables.)
 on:
+  push:
+    branches: [main, claude/gambitlab-chess-checkers-ms7cjq]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: pages-publish
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  publish:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,16 +36,13 @@ jobs:
       - name: Build (subpath base)
         run: BASE_PATH=/${{ github.event.repository.name }}/ npm run build
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Push site to gh-pages
+        run: |
+          cd dist
+          touch .nojekyll
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish site from ${{ github.sha }}"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
