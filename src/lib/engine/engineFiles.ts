@@ -5,12 +5,24 @@
  */
 const BASE = typeof import.meta.env !== 'undefined' ? (import.meta.env.BASE_URL ?? '/') : '/';
 
+/** Single-file (artifact) builds inject a blob URL for the engine worker. */
+function engineOverride(): string | undefined {
+  return (globalThis as { __GAMBITLAB_ENGINE_URL__?: string }).__GAMBITLAB_ENGINE_URL__;
+}
+
 export const ENGINE_MULTI = `${BASE}engine/stockfish-17.1-lite-51f59da.js`;
 export const ENGINE_SINGLE = `${BASE}engine/stockfish-17.1-lite-single-03e3232.js`;
 
+export function engineSingleUrl(): string {
+  return engineOverride() ?? ENGINE_SINGLE;
+}
+export function engineMultiUrl(): string {
+  return engineOverride() ?? ENGINE_MULTI;
+}
+
 export function engineScriptUrl(): string {
   const isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
-  return isolated ? ENGINE_MULTI : ENGINE_SINGLE;
+  return isolated && !engineOverride() ? ENGINE_MULTI : engineSingleUrl();
 }
 
 export function engineThreads(): number {
