@@ -1,8 +1,10 @@
 name: Deploy to GitHub Pages
 
+# Manual-only: GitHub Pages cannot publish from a private repo on the free
+# plan, so automatic runs would fail on every push (and email the owner).
+# If the repo ever becomes public (or gets GitHub Pro with Pages enabled),
+# run this workflow from the Actions tab — or restore the push trigger.
 on:
-  push:
-    branches: [main, claude/gambitlab-chess-checkers-ms7cjq]
   workflow_dispatch:
 
 permissions:
