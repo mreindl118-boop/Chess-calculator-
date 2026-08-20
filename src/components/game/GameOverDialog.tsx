@@ -26,6 +26,8 @@ export function GameOverDialog({
   onClose,
   ratingChange,
   analysisProgress,
+  accuracy,
+  acpl,
 }: {
   over: GameOverState;
   whiteName: string;
@@ -35,6 +37,8 @@ export function GameOverDialog({
   onClose: () => void;
   ratingChange?: string | null;
   analysisProgress?: { done: number; total: number } | null;
+  accuracy?: { w: number; b: number } | null;
+  acpl?: { w: number; b: number } | null;
 }) {
   if (!over.over) return null;
   const title =
@@ -56,6 +60,18 @@ export function GameOverDialog({
           <p className="dialog-analysis">
             Analyzing… {analysisProgress.done}/{analysisProgress.total}
           </p>
+        )}
+        {accuracy && (
+          <div className="dialog-accuracy">
+            <span>
+              {whiteName}: <strong>{accuracy.w}%</strong> accuracy
+              {acpl ? ` · ${acpl.w} avg loss` : ''}
+            </span>
+            <span>
+              {blackName}: <strong>{accuracy.b}%</strong> accuracy
+              {acpl ? ` · ${acpl.b} avg loss` : ''}
+            </span>
+          </div>
         )}
         <div className="dialog-actions">
           {onRematch && (

@@ -167,6 +167,15 @@ export function PlayView() {
         <EvalGraph evals={chess.evals} currentPly={chess.viewPly} onSeek={chess.goToPly} />
       )}
 
+      {/* full-game eval sparkline once the post-game analysis lands */}
+      {chess.postAnalysis && chess.postAnalysis.evals.length > 1 && (
+        <EvalGraph
+          evals={chess.postAnalysis.evals}
+          currentPly={chess.viewPly}
+          onSeek={chess.goToPly}
+        />
+      )}
+
       <div className="play-controls">
         <button
           className="btn subtle"
@@ -259,6 +268,8 @@ export function PlayView() {
           whiteName={config.white.name}
           blackName={config.black.name}
           analysisProgress={chess.analysisProgress}
+          accuracy={chess.postAnalysis?.accuracy}
+          acpl={chess.postAnalysis?.acpl}
           onAnalyze={
             chess.savedGameId
               ? () => nav.go('analysis', { gameId: chess.savedGameId! })

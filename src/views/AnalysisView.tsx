@@ -12,10 +12,68 @@ import { useNav } from '../state/navStore';
 import { useSettings } from '../state/settingsStore';
 import { scoreToCp } from '../lib/engine/analysis';
 import { explainLine } from '../lib/engine/explain';
+import { playSound } from '../lib/audio/sounds';
 import { START_FEN, type Color, type PieceSymbol, type Square } from '../lib/chess/types';
 import { rungName } from '../lib/engine/calibration';
 
 const EDITOR_PIECES: PieceSymbol[] = ['k', 'q', 'r', 'b', 'n', 'p'];
+
+/**
+ * Piece-level legality for the board builder: placements that could never
+ * occur in a legal chess position are refused outright. (Whole-position
+ * checks — e.g. the side not to move being in check — run again at "Done".)
+ */
+function placementProblem(
+  chess: Chess,
+  piece: { type: PieceSymbol; color: Color },
+  to: Square,
+  /** square being vacated when moving an existing piece, if any */
+  from?: Square,
+): string | null {
+  const rank = to[1];
+  if (piece.type === 'p' && (rank === '1' || rank === '8')) {
+    return 'Pawns can never stand on the first or last rank';
+  }
+
+  const squares: Array<{ sq: Square; type: PieceSymbol; color: Color }> = [];
+  const board = chess.board();
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const p = board[r][f];
+      if (!p) continue;
+      const sq = 'abcdefgh'[f] + String(8 - r);
+      if (sq === from || sq === to) continue; // vacated / replaced squares
+      squares.push({ sq, type: p.type as PieceSymbol, color: p.color as Color });
+    }
+  }
+
+  if (piece.type === 'k') {
+    if (squares.some((s) => s.type === 'k' && s.color === piece.color)) {
+      return 'Each side has exactly one king';
+    }
+    const enemyKing = squares.find((s) => s.type === 'k' && s.color !== piece.color);
+    if (enemyKing && kingsTouch(to, enemyKing.sq)) return 'Kings can never stand next to each other';
+  } else {
+    // Moving any piece is fine adjacency-wise, but check we don't strand two kings adjacent
+    // by capturing the buffer? (not possible — adjacency only involves kings themselves)
+    const myKing = squares.find((s) => s.type === 'k' && s.color === piece.color);
+    void myKing;
+  }
+
+  const mine = squares.filter((s) => s.color === piece.color);
+  if (piece.type === 'p' && mine.filter((s) => s.type === 'p').length >= 8) {
+    return 'A side can have at most 8 pawns';
+  }
+  if (mine.length >= 16) return 'A side can have at most 16 pieces';
+  return null;
+}
+
+function kingsTouch(a: Square, b: Square): boolean {
+  return (
+    Math.abs(a.charCodeAt(0) - b.charCodeAt(0)) <= 1 &&
+    Math.abs(a.charCodeAt(1) - b.charCodeAt(1)) <= 1
+  );
+}
 
 export function AnalysisView() {
   const a = useAnalysis();
@@ -77,8 +135,17 @@ export function AnalysisView() {
     x: number;
     y: number;
   } | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const editorErrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const editorApply = (fn: (chess: Chess) => void) => {
+  const flagPlacement = (problem: string) => {
+    playSound('illegal');
+    setEditorError(problem);
+    if (editorErrorTimer.current) clearTimeout(editorErrorTimer.current);
+    editorErrorTimer.current = setTimeout(() => setEditorError(null), 2600);
+  };
+
+  const loadEditorChess = (): Chess => {
     const chess = new Chess();
     chess.clear();
     try {
@@ -86,30 +153,58 @@ export function AnalysisView() {
     } catch {
       chess.clear();
     }
+    return chess;
+  };
+
+  const editorApply = (fn: (chess: Chess) => void) => {
+    const chess = loadEditorChess();
     fn(chess);
     useAnalysis.setState({ fen: chess.fen() });
   };
 
-  const editorTap = (sq: Square): boolean => {
-    if (!a.editing || palette === null) return false;
+  /** Rule-checked placement; returns false (with feedback) if it would be illegal. */
+  const editorPlace = (
+    piece: { type: PieceSymbol; color: Color },
+    to: Square,
+    from?: Square,
+  ): boolean => {
+    const problem = placementProblem(loadEditorChess(), piece, to, from);
+    if (problem) {
+      flagPlacement(problem);
+      return false;
+    }
     editorApply((chess) => {
-      if (palette === 'erase') chess.remove(sq as any);
-      else {
-        chess.remove(sq as any);
-        chess.put({ type: palette.piece, color: palette.color }, sq as any);
-      }
+      if (from) chess.remove(from as any);
+      chess.remove(to as any);
+      chess.put(piece as any, to as any);
     });
     return true;
   };
 
+  const editorTap = (sq: Square): boolean => {
+    if (!a.editing || palette === null) return false;
+    if (palette === 'erase') {
+      editorApply((chess) => {
+        chess.remove(sq as any);
+      });
+    } else {
+      editorPlace({ type: palette.piece, color: palette.color }, sq);
+    }
+    return true;
+  };
+
   const editorDrop = (from: Square, to: Square | null) => {
-    editorApply((chess) => {
-      const piece = chess.remove(from as any);
-      if (piece && to) {
-        chess.remove(to as any);
-        chess.put(piece, to as any);
-      }
-    });
+    const chess = loadEditorChess();
+    const piece = chess.get(from as any);
+    if (!piece) return;
+    if (!to) {
+      // dragged off the board = remove
+      editorApply((c) => {
+        c.remove(from as any);
+      });
+      return;
+    }
+    editorPlace({ type: piece.type as PieceSymbol, color: piece.color as Color }, to, from);
   };
 
   /** Drag a fresh piece from the palette straight onto a square. */
@@ -137,10 +232,7 @@ export function AnalysisView() {
       const file = orientation === 'w' ? fx : 7 - fx;
       const rank = orientation === 'w' ? 7 - fy : fy;
       const sq = 'abcdefgh'[file] + String(rank + 1);
-      editorApply((chess) => {
-        chess.remove(sq as any);
-        chess.put({ type: piece, color }, sq as any);
-      });
+      editorPlace({ type: piece, color }, sq);
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp, { once: true });
@@ -170,6 +262,22 @@ export function AnalysisView() {
   const finishEditing = () => {
     if (editorValidation) return;
     const fen = a.fen;
+    // A position is illegal if the side NOT to move is standing in check
+    // (their king could be captured immediately).
+    const parts = fen.split(' ');
+    const flipped = [...parts];
+    flipped[1] = parts[1] === 'w' ? 'b' : 'w';
+    flipped[3] = '-';
+    try {
+      if (new Chess(flipped.join(' ')).isCheck()) {
+        flagPlacement(
+          `${parts[1] === 'w' ? 'Black' : 'White'} is in check but it isn't their turn — adjust the position or the side to move`,
+        );
+        return;
+      }
+    } catch {
+      /* flipped FEN unloadable — the normal validation already covers it */
+    }
     a.setEditing(false);
     a.setRoot(fen, fen === START_FEN ? 'standard' : 'custom');
     // Best moves should appear at a glance the moment the position is built.
@@ -275,8 +383,9 @@ export function AnalysisView() {
         <div className="editor-panel">
           <p className="field-hint">
             Drag a piece from the tray onto the board (or tap it, then tap squares). Drag pieces
-            off the board to remove them.
+            off the board to remove them. Only legal placements are accepted.
           </p>
+          {editorError && <p className="field-error placement-error">{editorError}</p>}
           <div className="palette">
             {(['w', 'b'] as const).map((c) => (
               <div key={c} className="palette-row">
@@ -422,6 +531,19 @@ export function AnalysisView() {
             onPromote={a.promoteVariation}
             onDelete={a.deleteVariation}
           />
+
+          {a.loadedGameAnalysis && (
+            <div className="accuracy-strip">
+              <span>
+                White <strong>{a.loadedGameAnalysis.accuracy.w}%</strong> ·{' '}
+                {a.loadedGameAnalysis.acpl.w} avg loss
+              </span>
+              <span>
+                Black <strong>{a.loadedGameAnalysis.accuracy.b}%</strong> ·{' '}
+                {a.loadedGameAnalysis.acpl.b} avg loss
+              </span>
+            </div>
+          )}
 
           {evalSeries && evalSeries.length > 1 && (
             <EvalGraph

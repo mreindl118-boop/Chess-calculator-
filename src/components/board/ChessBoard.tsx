@@ -179,9 +179,20 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
   }, []);
 
   const endDrag = useCallback(() => {
+    // Snap the dragged piece back onto its origin square. The drag moves the
+    // DOM node directly (bypassing React), so if the move is rejected React
+    // has no prop change to reconcile and the piece would stay floating
+    // wherever it was released. A legal move re-renders with a new transform
+    // right after, overriding this reset.
+    const ds = dragState.current;
+    const node = dragNode.current;
+    if (ds && node) {
+      const [x, y] = toXY(ds.from);
+      node.setAttribute('transform', `translate(${x} ${y})`);
+    }
     dragState.current = null;
     setDragging(null);
-  }, []);
+  }, [toXY]);
 
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent<SVGSVGElement>) => {

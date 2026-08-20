@@ -31,6 +31,8 @@ export interface ChessGameConfig {
   variant: ChessVariant;
   customFen?: string;
   seed?: number;
+  /** fixed Chess960 start position (0-959); omit for random */
+  position960?: number;
   rbcRatingGap?: number;
   /** hve: which color the human plays */
   humanColor?: Color;
@@ -137,6 +139,7 @@ function gameOptions(config: ChessGameConfig): VariantGameOptions {
     variant: config.variant,
     fen: config.customFen,
     seed: config.seed,
+    position960: config.position960,
     rbc:
       config.variant === 'rbc-handicap'
         ? { mode: 'handicap', ratingGap: config.rbcRatingGap ?? 0 }

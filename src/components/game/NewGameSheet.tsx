@@ -62,6 +62,8 @@ export function NewGameSheet({
   const [checkersMode, setCheckersMode] = useState<'hva' | 'ava' | 'pvp'>('hva');
   const [variant, setVariant] = useState<ChessVariant>('standard');
   const [customFen, setCustomFen] = useState('');
+  const [pos960, setPos960] = useState('');
+  const [moveDelay, setMoveDelay] = useState(0.7);
   const [color, setColor] = useState<'w' | 'b' | 'random'>('random');
   const [elo, setElo] = useState(1200);
   const [eloW, setEloW] = useState(1600);
@@ -138,15 +140,20 @@ export function NewGameSheet({
           : black.kind === 'engine' ? black.elo : undefined;
         return wr !== undefined && br !== undefined ? wr - br : 0;
       };
+      const parsed960 = parseInt(pos960, 10);
       const config: ChessGameConfig = {
         mode: chessMode,
         variant,
         customFen: variant === 'custom' ? customFen.trim() : undefined,
+        position960:
+          variant === 'chess960' && Number.isInteger(parsed960) && parsed960 >= 0 && parsed960 <= 959
+            ? parsed960
+            : undefined,
         rbcRatingGap: variant === 'rbc-handicap' ? gapFor() : undefined,
         humanColor: chessMode === 'hve' ? humanColor : undefined,
         engineElo: chessMode === 'hve' ? elo : undefined,
         eveElo: chessMode === 'eve' ? { w: eloW, b: eloB } : undefined,
-        eveDelayMs: 700,
+        eveDelayMs: Math.round(moveDelay * 1000),
         timeControl,
         rated: rated && ratedAllowed,
         white,
@@ -178,7 +185,7 @@ export function NewGameSheet({
         humanColor: checkersMode === 'hva' ? humanColor : undefined,
         aiLevel: checkersMode === 'hva' ? aiLevel : undefined,
         avaLevels: checkersMode === 'ava' ? { w: aiLevelW, b: aiLevelB } : undefined,
-        avaDelayMs: 700,
+        avaDelayMs: Math.round(moveDelay * 1000),
         timeControl,
         rated: rated && ratedAllowed,
         white,
@@ -278,6 +285,20 @@ export function NewGameSheet({
               </select>
             </label>
             <p className="field-hint">{VARIANTS.find((v) => v.id === variant)?.desc}</p>
+            {variant === 'chess960' && (
+              <label className="field">
+                <span>Start position (0–959, blank = random)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={959}
+                  value={pos960}
+                  onChange={(e) => setPos960(e.target.value)}
+                  placeholder="Random"
+                />
+                <p className="field-hint">518 is the classical chess start.</p>
+              </label>
+            )}
             {variant === 'custom' && (
               <label className="field">
                 <span>Start FEN</span>
@@ -381,6 +402,21 @@ export function NewGameSheet({
               />
             </label>
           </>
+        )}
+
+        {((game === 'chess' && chessMode === 'eve') ||
+          (game === 'checkers' && checkersMode === 'ava')) && (
+          <label className="field">
+            <span>Move delay — {moveDelay.toFixed(1)}s between moves</span>
+            <input
+              type="range"
+              min={0.1}
+              max={3}
+              step={0.1}
+              value={moveDelay}
+              onChange={(e) => setMoveDelay(parseFloat(e.target.value))}
+            />
+          </label>
         )}
 
         {isPvP && (

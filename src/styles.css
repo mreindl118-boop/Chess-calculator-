@@ -792,6 +792,35 @@ textarea {
   color: var(--accent);
   font-size: 0.85rem;
 }
+.dialog-accuracy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 2px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+.dialog-accuracy strong {
+  color: var(--text);
+}
+.accuracy-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 0.86rem;
+  color: var(--text-dim);
+}
+.accuracy-strip strong {
+  color: var(--text);
+}
+.placement-error {
+  animation: card-in 180ms var(--ease-out);
+  font-weight: 600;
+}
 .dialog-actions {
   display: flex;
   gap: 8px;

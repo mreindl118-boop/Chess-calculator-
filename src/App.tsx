@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { useChess } from './state/chessStore';
+import { useAnalysis } from './state/analysisStore';
 import { useNav, type View } from './state/navStore';
 import { useSettings } from './state/settingsStore';
 import { useProfiles } from './state/profilesStore';
@@ -96,6 +97,11 @@ export default function App() {
         const chess = useChess.getState();
         if (e.key === 'ArrowLeft') chess.goToPly(chess.viewPly - 1);
         if (e.key === 'ArrowRight') chess.goToPly(chess.viewPly + 1);
+      } else if (view === 'analysis') {
+        const a = useAnalysis.getState();
+        if (a.editing) return;
+        if (e.key === 'ArrowLeft') a.back();
+        if (e.key === 'ArrowRight') a.forward();
       }
     };
     window.addEventListener('keydown', onKey);
