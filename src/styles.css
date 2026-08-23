@@ -821,6 +821,79 @@ textarea {
   animation: card-in 180ms var(--ease-out);
   font-weight: 600;
 }
+
+/* calculator bar + move verdict */
+.calc-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.turn-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.turn-dot.white {
+  background: #f4f0e6;
+  border: 1.5px solid #3f3830;
+}
+.turn-dot.black {
+  background: #2f2b27;
+  border: 1.5px solid #857e72;
+}
+.calc-turn {
+  font-weight: 650;
+  flex: 1;
+}
+.calc-setup {
+  min-height: 38px;
+  padding: 6px 14px;
+}
+
+.verdict-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  animation: card-in 220ms var(--ease-out);
+}
+.verdict-chip {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.verdict-text {
+  font-size: 0.9rem;
+  flex: 1;
+}
+.verdict-depth {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  animation: pulse 1.2s infinite;
+}
+.v-best .verdict-chip { background: var(--good); }
+.v-best { border-color: rgb(92 185 117 / 0.5); }
+.v-excellent .verdict-chip { background: #4da57e; }
+.v-good .verdict-chip { background: #7d8a96; }
+.v-inaccuracy .verdict-chip { background: #dcbc4a; color: #241f10; }
+.v-inaccuracy { border-color: rgb(220 188 74 / 0.45); }
+.v-mistake .verdict-chip { background: #e0925c; color: #241207; }
+.v-mistake { border-color: rgb(224 146 92 / 0.5); }
+.v-blunder .verdict-chip { background: var(--danger); }
+.v-blunder { border-color: rgb(224 96 96 / 0.55); }
 .dialog-actions {
   display: flex;
   gap: 8px;

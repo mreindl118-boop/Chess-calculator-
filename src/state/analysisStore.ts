@@ -6,7 +6,32 @@ import { getAnalysisEngineRaw, withAnalysisEngine } from './engineHub';
 import type { EngineInfo } from '../lib/engine/uci';
 import { exportPgn, importPgn } from '../lib/chess/pgn';
 import { db } from '../lib/db/schema';
-import type { GameAnalysis } from '../lib/engine/analysis';
+import { classify, scoreToCp, type GameAnalysis, type MoveClass } from '../lib/engine/analysis';
+
+/** Live grade of the move the user just played, versus the engine's best. */
+export interface MoveVerdict {
+  san: string;
+  playedUci: string;
+  bestSan: string;
+  bestUci: string;
+  /** centipawns thrown away versus the best move (mover's perspective) */
+  cpLoss: number;
+  cls: MoveClass;
+  /** depth of the after-position search this verdict is based on */
+  depth: number;
+  final: boolean;
+}
+
+interface PendingVerdict {
+  /** fen AFTER the played move — verdict resolves when this position's search deepens */
+  forFen: string;
+  bestUci: string;
+  bestSan: string;
+  /** best eval of the pre-move position, mover's POV (cp) */
+  bestScoreCp: number;
+  playedUci: string;
+  playedSan: string;
+}
 
 export interface AnalysisState {
   rootFen: string;
@@ -22,6 +47,8 @@ export interface AnalysisState {
   loadedGameAnalysis: GameAnalysis | null;
   loadedGameId: string | null;
   error: string | null;
+  /** grade of the last move played on the board, once computed */
+  verdict: MoveVerdict | null;
 
   setRoot: (fen: string, variant?: ChessVariant) => void;
   tryMove: (from: Square, to: Square, promotion?: PieceSymbol) => boolean;
@@ -42,6 +69,7 @@ export interface AnalysisState {
 
 let tree = new MoveTree(START_FEN);
 let searchGeneration = 0;
+let pendingVerdict: PendingVerdict | null = null;
 
 export function analysisTree(): MoveTree {
   return tree;
@@ -76,8 +104,37 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
           lines[info.multipv - 1] = info;
           return { lines, depth: info.multipv === 1 ? info.depth : s.depth };
         });
+        resolveVerdict(fen, info);
       });
     });
+  }
+
+  /** Grade the just-played move once the after-position search is deep enough. */
+  function resolveVerdict(searchFen: string, info: EngineInfo) {
+    const pending = pendingVerdict;
+    if (!pending || pending.forFen !== searchFen) return;
+    if (info.multipv !== 1 || info.depth < 12) return;
+    const current = get().verdict;
+    if (current?.final) return;
+    // info score is from the opponent's POV in the after-position;
+    // negate to get the mover's POV.
+    const evalAfterMover = -scoreToCp(info);
+    const playedBest = pending.playedUci === pending.bestUci;
+    const cpLoss = playedBest ? 0 : Math.max(0, pending.bestScoreCp - evalAfterMover);
+    const final = info.depth >= 16;
+    set({
+      verdict: {
+        san: pending.playedSan,
+        playedUci: pending.playedUci,
+        bestSan: pending.bestSan,
+        bestUci: pending.bestUci,
+        cpLoss,
+        cls: classify(cpLoss, playedBest),
+        depth: info.depth,
+        final,
+      },
+    });
+    if (final) pendingVerdict = null;
   }
 
   function restart() {
@@ -98,10 +155,13 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     loadedGameAnalysis: null,
     loadedGameId: null,
     error: null,
+    verdict: null,
 
     setRoot: (fen, variant) => {
       tree = new MoveTree(fen);
+      pendingVerdict = null;
       set({
+        verdict: null,
         rootFen: fen,
         variant: variant ?? (fen === START_FEN ? 'standard' : 'custom'),
         currentNodeId: 0,
@@ -119,10 +179,35 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
       if (s.editing) return false;
       const g = gameAt(s.fen, s.variant);
       if (!g) return false;
+
+      // Snapshot the engine's current best for THIS position so the played
+      // move can be graded against it once the new position's search deepens.
+      const bestLine = s.engineOn ? s.lines[0] : undefined;
+      let snapshot: Omit<PendingVerdict, 'forFen' | 'playedUci' | 'playedSan'> | null = null;
+      if (bestLine && bestLine.pv[0] && bestLine.depth >= 8) {
+        const gb = gameAt(s.fen, s.variant);
+        const bestRec = gb?.move(bestLine.pv[0]);
+        if (bestRec) {
+          snapshot = {
+            bestUci: bestLine.pv[0],
+            bestSan: bestRec.san,
+            bestScoreCp: scoreToCp(bestLine), // mover to play in this position
+          };
+        }
+      }
+
       const rec = g.move({ from, to, promotion });
       if (!rec) return false;
+      pendingVerdict = snapshot
+        ? { ...snapshot, forFen: rec.fenAfter, playedUci: rec.uci, playedSan: rec.san }
+        : null;
       const node = tree.addMove(s.currentNodeId, rec);
-      set({ currentNodeId: node.id, fen: node.fen, treeVersion: s.treeVersion + 1 });
+      set({
+        currentNodeId: node.id,
+        fen: node.fen,
+        treeVersion: s.treeVersion + 1,
+        verdict: null,
+      });
       restart();
       return true;
     },
@@ -136,7 +221,8 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     goto: (nodeId) => {
       try {
         const node = tree.get(nodeId);
-        set({ currentNodeId: node.id, fen: node.fen });
+        pendingVerdict = null;
+        set({ currentNodeId: node.id, fen: node.fen, verdict: null });
         restart();
       } catch {
         /* stale id */
@@ -184,7 +270,8 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
 
     toggleEngine: () => {
       const on = !get().engineOn;
-      set({ engineOn: on, lines: [], depth: 0 });
+      set({ engineOn: on, lines: [], depth: 0, verdict: null });
+      pendingVerdict = null;
       if (on) void runEngine();
       else {
         searchGeneration++;
@@ -196,6 +283,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
       try {
         const imported = importPgn(pgnText);
         tree = new MoveTree(imported.startFen);
+        pendingVerdict = null;
         let nodeId = 0;
         for (const m of imported.moves) {
           nodeId = tree.addMove(nodeId, m).id;
@@ -211,6 +299,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
           loadedGameId: null,
           error: null,
           editing: false,
+          verdict: null,
         });
         restart();
         return true;
@@ -245,6 +334,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
                 fen: startFen,
               });
         tree = new MoveTree(startFen);
+        pendingVerdict = null;
         let nodeId = 0;
         for (const uci of saved.moves) {
           const rec = g.move(uci);
@@ -261,6 +351,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
           loadedGameId: gameId,
           error: null,
           editing: false,
+          verdict: null,
         });
         restart();
         return true;
@@ -272,8 +363,9 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     setEditing: (on) => {
       if (on) {
         searchGeneration++;
+        pendingVerdict = null;
         getAnalysisEngineRaw().stop();
-        set({ editing: true, engineOn: false, lines: [], depth: 0 });
+        set({ editing: true, engineOn: false, lines: [], depth: 0, verdict: null });
       } else {
         set({ editing: false });
       }

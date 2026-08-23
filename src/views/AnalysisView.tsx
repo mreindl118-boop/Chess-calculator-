@@ -6,7 +6,7 @@ import { EvalBar } from '../components/game/EvalBar';
 import { EvalGraph } from '../components/game/EvalGraph';
 import { MoveTreeView } from '../components/analysis/MoveTreeView';
 import { PieceGlyph } from '../components/board/pieces';
-import { analysisTree, useAnalysis } from '../state/analysisStore';
+import { analysisTree, useAnalysis, type MoveVerdict } from '../state/analysisStore';
 import { useChess } from '../state/chessStore';
 import { useNav } from '../state/navStore';
 import { useSettings } from '../state/settingsStore';
@@ -338,7 +338,7 @@ export function AnalysisView() {
         <button className="btn subtle" onClick={() => nav.go('home')}>
           ‹ Home
         </button>
-        <span className="game-tag">Analysis Lab</span>
+        <span className="game-tag">Calculator</span>
         <button className="btn subtle" onClick={() => setOrientation(orientation === 'w' ? 'b' : 'w')}>
           ⇅ Flip
         </button>
@@ -378,6 +378,18 @@ export function AnalysisView() {
           )}
         </div>
       </div>
+
+      {!a.editing && (
+        <div className="calc-bar">
+          <span className={`turn-dot ${turn === 'w' ? 'white' : 'black'}`} />
+          <span className="calc-turn">{turn === 'w' ? 'White' : 'Black'} to move</span>
+          <button className="btn primary calc-setup" onClick={() => a.setEditing(true)}>
+            ✎ Set up board
+          </button>
+        </div>
+      )}
+
+      {!a.editing && a.verdict && <VerdictBanner verdict={a.verdict} />}
 
       {a.editing ? (
         <div className="editor-panel">
@@ -558,9 +570,6 @@ export function AnalysisView() {
           )}
 
           <div className="analysis-toolbar">
-            <button className="btn subtle" onClick={() => a.setEditing(true)}>
-              ✎ Build position
-            </button>
             <button className="btn subtle" onClick={() => setShowPlayFrom(!showPlayFrom)}>
               Play from here
             </button>
@@ -658,6 +667,41 @@ export function AnalysisView() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+const VERDICT_META: Record<
+  MoveVerdict['cls'],
+  { label: string; chip: string }
+> = {
+  best: { label: 'Best move', chip: 'v-best' },
+  excellent: { label: 'Excellent', chip: 'v-excellent' },
+  good: { label: 'Good', chip: 'v-good' },
+  inaccuracy: { label: 'Inaccuracy', chip: 'v-inaccuracy' },
+  mistake: { label: 'Mistake', chip: 'v-mistake' },
+  blunder: { label: 'Blunder', chip: 'v-blunder' },
+};
+
+function VerdictBanner({ verdict }: { verdict: MoveVerdict }) {
+  const meta = VERDICT_META[verdict.cls];
+  const pawns = (verdict.cpLoss / 100).toFixed(1);
+  let text: string;
+  if (verdict.cls === 'best') {
+    text = `${verdict.san} — the engine's top choice.`;
+  } else if (verdict.cls === 'excellent' || verdict.cls === 'good') {
+    text = `${verdict.san} — nearly as good as ${verdict.bestSan} (−${pawns}).`;
+  } else if (verdict.cpLoss > 900) {
+    // mate-scale swing: a raw pawn count would read as nonsense
+    text = `${verdict.san} throws the game away — ${verdict.bestSan} was the move.`;
+  } else {
+    text = `${verdict.san} loses ${pawns} pawns — ${verdict.bestSan} was better.`;
+  }
+  return (
+    <div className={`verdict-banner ${meta.chip}`}>
+      <span className="verdict-chip">{meta.label}</span>
+      <span className="verdict-text">{text}</span>
+      {!verdict.final && <span className="verdict-depth">checking…</span>}
     </div>
   );
 }

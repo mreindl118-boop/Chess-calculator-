@@ -79,7 +79,7 @@ export function HomeView() {
             <circle cx={10.5} cy={10.5} r={6.2} />
             <path d="M15.2 15.2 L20.5 20.5 M8 10.5 L13 10.5 M10.5 8 L10.5 13" />
           </svg>
-          <span>Analyze</span>
+          <span>Calculator</span>
         </button>
         <button className="home-tile" onClick={() => nav.go('library')}>
           <svg className="tile-svg" viewBox="0 0 24 24" aria-hidden>

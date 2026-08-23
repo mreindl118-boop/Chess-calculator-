@@ -57,7 +57,7 @@ function TabIcon({ name }: { name: View }) {
 
 const TABS: Array<{ view: View; label: string }> = [
   { view: 'home', label: 'Play' },
-  { view: 'analysis', label: 'Analyze' },
+  { view: 'analysis', label: 'Calculate' },
   { view: 'library', label: 'Games' },
   { view: 'stats', label: 'Progress' },
   { view: 'settings', label: 'Settings' },
