@@ -5,6 +5,7 @@ import { PromotionPicker } from '../components/game/PromotionPicker';
 import { EvalBar } from '../components/game/EvalBar';
 import { EvalGraph } from '../components/game/EvalGraph';
 import { MoveTreeView } from '../components/analysis/MoveTreeView';
+import { ScanImport } from '../components/analysis/ScanImport';
 import { PieceGlyph } from '../components/board/pieces';
 import { analysisTree, useAnalysis, type MoveVerdict } from '../state/analysisStore';
 import { useChess } from '../state/chessStore';
@@ -86,6 +87,8 @@ export function AnalysisView() {
   const [palette, setPalette] = useState<{ piece: PieceSymbol; color: Color } | 'erase' | null>(null);
   const [pendingPromo, setPendingPromo] = useState<{ from: Square; to: Square } | null>(null);
   const [showPlayFrom, setShowPlayFrom] = useState(false);
+  const [showScan, setShowScan] = useState(false);
+  const [scanNote, setScanNote] = useState<string | null>(null);
   const [playElo, setPlayElo] = useState(1600);
   const [playColor, setPlayColor] = useState<Color>('w');
   const [orientation, setOrientation] = useState<Color>('w');
@@ -278,6 +281,7 @@ export function AnalysisView() {
     } catch {
       /* flipped FEN unloadable — the normal validation already covers it */
     }
+    setScanNote(null);
     a.setEditing(false);
     a.setRoot(fen, fen === START_FEN ? 'standard' : 'custom');
     // Best moves should appear at a glance the moment the position is built.
@@ -386,13 +390,29 @@ export function AnalysisView() {
           <button className="btn primary calc-setup" onClick={() => a.setEditing(true)}>
             ✎ Set up board
           </button>
+          <button className="btn subtle calc-scan" onClick={() => setShowScan(true)}>
+            📷 Scan image
+          </button>
         </div>
+      )}
+
+      {showScan && (
+        <ScanImport
+          onClose={() => setShowScan(false)}
+          onDone={(fen, note) => {
+            setShowScan(false);
+            a.setEditing(true);
+            useAnalysis.setState({ fen });
+            setScanNote(note);
+          }}
+        />
       )}
 
       {!a.editing && a.verdict && <VerdictBanner verdict={a.verdict} />}
 
       {a.editing ? (
         <div className="editor-panel">
+          {scanNote && <p className="scan-note">{scanNote}</p>}
           <p className="field-hint">
             Drag a piece from the tray onto the board (or tap it, then tap squares). Drag pieces
             off the board to remove them. Only legal placements are accepted.
@@ -476,6 +496,9 @@ export function AnalysisView() {
               onClick={() => useAnalysis.setState({ fen: '8/8/8/8/8/8/8/8 w - - 0 1' })}
             >
               Clear
+            </button>
+            <button className="btn subtle" onClick={() => setShowScan(true)}>
+              📷 Scan
             </button>
             <button className="btn primary" disabled={!!editorValidation} onClick={finishEditing}>
               Done

@@ -854,6 +854,41 @@ textarea {
   min-height: 38px;
   padding: 6px 14px;
 }
+.calc-scan {
+  min-height: 38px;
+  padding: 6px 12px;
+}
+
+/* scan-a-board-image dialog */
+.scan-dialog {
+  width: min(540px, 94vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.scan-dialog h2 {
+  margin: 0;
+}
+.scan-canvas {
+  max-width: 100%;
+  height: auto;
+  align-self: center;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  touch-action: none;
+  cursor: move;
+}
+.scan-note {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-raised));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  font-weight: 550;
+  animation: card-in 220ms var(--ease-out);
+}
 
 .verdict-banner {
   display: flex;
