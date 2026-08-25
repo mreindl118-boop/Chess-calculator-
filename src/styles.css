@@ -880,6 +880,29 @@ textarea {
   touch-action: none;
   cursor: move;
 }
+.drop-overlay {
+  position: fixed;
+  inset: 10px;
+  z-index: 60;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 12%, rgb(8 10 14 / 0.72));
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: overlay-in 140ms ease;
+}
+.drop-overlay span {
+  font-weight: 700;
+  font-size: 1.05rem;
+  text-align: center;
+  padding: 0 24px;
+  max-width: 420px;
+}
+
 .scan-note {
   background: color-mix(in srgb, var(--accent) 14%, var(--bg-raised));
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));

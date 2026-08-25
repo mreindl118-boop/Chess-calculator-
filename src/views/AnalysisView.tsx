@@ -88,7 +88,10 @@ export function AnalysisView() {
   const [pendingPromo, setPendingPromo] = useState<{ from: Square; to: Square } | null>(null);
   const [showPlayFrom, setShowPlayFrom] = useState(false);
   const [showScan, setShowScan] = useState(false);
+  const [scanFile, setScanFile] = useState<File | null>(null);
   const [scanNote, setScanNote] = useState<string | null>(null);
+  const [dropActive, setDropActive] = useState(false);
+  const dragDepth = useRef(0);
   const [playElo, setPlayElo] = useState(1600);
   const [playColor, setPlayColor] = useState<Color>('w');
   const [orientation, setOrientation] = useState<Color>('w');
@@ -132,6 +135,7 @@ export function AnalysisView() {
 
   // ---- editor helpers (operate directly on the FEN) ----
   const boardWrapRef = useRef<HTMLDivElement | null>(null);
+  const pgnFileRef = useRef<HTMLInputElement | null>(null);
   const [paletteDrag, setPaletteDrag] = useState<{
     piece: PieceSymbol;
     color: Color;
@@ -318,6 +322,53 @@ export function AnalysisView() {
     nav.go('play');
   };
 
+  /** Back to a clean start position: tree, PGN, loaded game, verdicts — all gone. */
+  const resetAll = () => {
+    setPgnText('');
+    setFenInput('');
+    setShowPgn(false);
+    setScanNote(null);
+    a.setRoot(START_FEN, 'standard');
+  };
+
+  /** Dropped or picked text: try FEN first, then PGN; surface parse errors in the panel. */
+  const importText = (raw: string) => {
+    const text = raw.trim();
+    if (!text) return;
+    if (!text.includes('\n') && validateFen(text).ok) {
+      a.setRoot(text, text === START_FEN ? 'standard' : 'custom');
+      return;
+    }
+    if (!a.loadPgnText(text)) {
+      setPgnText(text);
+      setShowPgn(true);
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    if ((e.target as HTMLElement).tagName === 'TEXTAREA') {
+      // let the browser drop text into the PGN box normally
+      dragDepth.current = 0;
+      setDropActive(false);
+      return;
+    }
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDropActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        setScanFile(file);
+        setShowScan(true);
+      } else {
+        void file.text().then(importText);
+      }
+      return;
+    }
+    const text = e.dataTransfer.getData('text/plain');
+    if (text) importText(text);
+  };
+
   const evalSeries = useMemo(() => {
     if (!a.loadedGameAnalysis) return null;
     return a.loadedGameAnalysis.evals;
@@ -326,7 +377,25 @@ export function AnalysisView() {
   const currentPath = tree.pathTo(a.currentNodeId);
 
   return (
-    <div className="analysis-view">
+    <div
+      className="analysis-view"
+      onDragEnter={(e) => {
+        e.preventDefault();
+        dragDepth.current++;
+        setDropActive(true);
+      }}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1);
+        if (dragDepth.current === 0) setDropActive(false);
+      }}
+      onDrop={onDrop}
+    >
+      {dropActive && (
+        <div className="drop-overlay">
+          <span>Drop a .pgn file to import — or a board image to scan</span>
+        </div>
+      )}
       {paletteDrag && (
         <div className="drag-ghost" style={{ left: paletteDrag.x, top: paletteDrag.y }}>
           <svg viewBox="0 0 100 100">
@@ -398,9 +467,14 @@ export function AnalysisView() {
 
       {showScan && (
         <ScanImport
-          onClose={() => setShowScan(false)}
+          initialFile={scanFile}
+          onClose={() => {
+            setShowScan(false);
+            setScanFile(null);
+          }}
           onDone={(fen, note) => {
             setShowScan(false);
+            setScanFile(null);
             a.setEditing(true);
             useAnalysis.setState({ fen });
             setScanNote(note);
@@ -593,6 +667,9 @@ export function AnalysisView() {
           )}
 
           <div className="analysis-toolbar">
+            <button className="btn subtle" onClick={resetAll}>
+              ↺ Reset
+            </button>
             <button className="btn subtle" onClick={() => setShowPlayFrom(!showPlayFrom)}>
               Play from here
             </button>
@@ -659,6 +736,9 @@ export function AnalysisView() {
 
           {showPgn && (
             <div className="pgn-panel">
+              <p className="field-hint">
+                Paste PGN below, pick a .pgn file, or just drag one anywhere onto this screen.
+              </p>
               <textarea
                 rows={6}
                 value={pgnText}
@@ -675,6 +755,9 @@ export function AnalysisView() {
                 >
                   Import
                 </button>
+                <button className="btn subtle" onClick={() => pgnFileRef.current?.click()}>
+                  Load file
+                </button>
                 <button className="btn subtle" onClick={() => setPgnText(a.exportPgnText())}>
                   Export
                 </button>
@@ -684,7 +767,21 @@ export function AnalysisView() {
                 >
                   Copy
                 </button>
+                <button className="btn subtle" onClick={resetAll}>
+                  Reset
+                </button>
               </div>
+              <input
+                ref={pgnFileRef}
+                type="file"
+                accept=".pgn,.txt,text/plain,application/x-chess-pgn"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void f.text().then(importText);
+                  e.target.value = '';
+                }}
+              />
               {a.error && <p className="field-error">{a.error}</p>}
             </div>
           )}

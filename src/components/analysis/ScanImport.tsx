@@ -11,9 +11,12 @@ const DISPLAY_MAX = 480;
 export function ScanImport({
   onDone,
   onClose,
+  initialFile,
 }: {
   onDone: (fen: string, note: string) => void;
   onClose: () => void;
+  /** start with this image already loaded (e.g. dropped onto the app) */
+  initialFile?: File | null;
 }) {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
@@ -59,6 +62,11 @@ export function ScanImport({
     image.onerror = () => setError("Couldn't read that image file.");
     image.src = url;
   }, []);
+
+  // image handed in from a drag-and-drop
+  useEffect(() => {
+    if (initialFile) loadFile(initialFile);
+  }, [initialFile, loadFile]);
 
   // paste support
   useEffect(() => {
