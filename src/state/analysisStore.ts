@@ -42,6 +42,8 @@ export interface AnalysisState {
   treeVersion: number;
   engineOn: boolean;
   lines: EngineInfo[];
+  /** the three worst legal moves (from a quick full-width ranking pass) */
+  worstLines: EngineInfo[];
   depth: number;
   editing: boolean;
   loadedGameAnalysis: GameAnalysis | null;
@@ -69,6 +71,8 @@ export interface AnalysisState {
 
 let tree = new MoveTree(START_FEN);
 let searchGeneration = 0;
+/** Depth of the quick full-width pass that ranks the worst moves. */
+const WORST_SCAN_DEPTH = 12;
 let pendingVerdict: PendingVerdict | null = null;
 
 export function analysisTree(): MoveTree {
@@ -90,12 +94,33 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     const { engineOn, fen, variant } = get();
     getAnalysisEngineRaw().stop();
     if (!engineOn) return;
+    const legalCount = gameAt(fen, variant)?.moves().length ?? 3;
     await withAnalysisEngine(async (engine) => {
       if (generation !== searchGeneration) return;
-      engine.setOption('MultiPV', 3);
       engine.setOption('UCI_LimitStrength', false);
       engine.setOption('Skill Level', 20);
       engine.setOption('UCI_Chess960', variant === 'chess960');
+      engine.position(fen);
+
+      // Phase 1 — rank EVERY legal move to a shallow depth. This is fast and
+      // finds the worst moves (blunders show early), without the deep-search
+      // depth penalty a permanently wide MultiPV would impose on the best
+      // moves. Skipped when there are too few moves for a distinct "worst".
+      if (legalCount > 3) {
+        engine.setOption('MultiPV', Math.min(legalCount, 80));
+        const all: EngineInfo[] = [];
+        await engine.go({ depth: WORST_SCAN_DEPTH }, (info) => {
+          if (generation !== searchGeneration) return;
+          all[info.multipv - 1] = info;
+        });
+        if (generation !== searchGeneration) return;
+        const ranked = all.filter(Boolean);
+        // seed the best list too so the UI fills instantly, then refine below
+        set({ worstLines: ranked.slice(-3), lines: ranked.slice(0, 5) });
+      }
+
+      // Phase 2 — focused, infinite, full-strength search of the best moves.
+      engine.setOption('MultiPV', Math.max(1, Math.min(legalCount, 5)));
       engine.position(fen);
       await engine.go({ infinite: true }, (info) => {
         if (generation !== searchGeneration) return;
@@ -138,7 +163,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
   }
 
   function restart() {
-    set({ lines: [], depth: 0 });
+    set({ lines: [], worstLines: [], depth: 0 });
     void runEngine();
   }
 
@@ -150,6 +175,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     treeVersion: 0,
     engineOn: false,
     lines: [],
+    worstLines: [],
     depth: 0,
     editing: false,
     loadedGameAnalysis: null,
@@ -160,6 +186,10 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     setRoot: (fen, variant) => {
       tree = new MoveTree(fen);
       pendingVerdict = null;
+      // The Calculator should just work: loading any real position turns the
+      // engine on so best/worst moves appear immediately. The blank start
+      // position stays quiet (that's the scan-a-photo landing screen).
+      const engineOn = fen !== START_FEN;
       set({
         verdict: null,
         rootFen: fen,
@@ -170,6 +200,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
         loadedGameAnalysis: null,
         loadedGameId: null,
         error: null,
+        engineOn,
       });
       restart();
     },
@@ -270,7 +301,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
 
     toggleEngine: () => {
       const on = !get().engineOn;
-      set({ engineOn: on, lines: [], depth: 0, verdict: null });
+      set({ engineOn: on, lines: [], worstLines: [], depth: 0, verdict: null });
       pendingVerdict = null;
       if (on) void runEngine();
       else {
@@ -300,6 +331,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
           error: null,
           editing: false,
           verdict: null,
+          engineOn: true,
         });
         restart();
         return true;
@@ -365,7 +397,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
         searchGeneration++;
         pendingVerdict = null;
         getAnalysisEngineRaw().stop();
-        set({ editing: true, engineOn: false, lines: [], depth: 0, verdict: null });
+        set({ editing: true, engineOn: false, lines: [], worstLines: [], depth: 0, verdict: null });
       } else {
         set({ editing: false });
       }

@@ -28,8 +28,9 @@ export interface ChessBoardProps {
   premove?: { from: Square; to: Square } | null;
   hint?: { from: Square; to: Square } | null;
   arrow?: { from: Square; to: Square } | null;
-  /** ranked suggestion arrows (0 = best); rendered under `arrow`/`hint` */
-  arrows?: Array<{ from: Square; to: Square; rank: number }>;
+  /** ranked suggestion arrows (0 = best); rendered under `arrow`/`hint`.
+   *  `worst` draws the arrow in the red "avoid this" palette. */
+  arrows?: Array<{ from: Square; to: Square; rank: number; worst?: boolean }>;
   legalTargetsFor?: (from: Square) => UiMove[];
   onMove?: (intent: BoardMoveIntent) => void;
   /** editor mode: report raw drops anywhere incl. off-board */
@@ -372,6 +373,19 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
             <path d="M0,0.6 L3,2 L0,3.4 Z" className={`arrow-rank${r}-head`} />
           </marker>
         ))}
+        {[0, 1, 2].map((r) => (
+          <marker
+            key={`w${r}`}
+            id={`arrowhead-arrow-worst${r}`}
+            markerWidth={4}
+            markerHeight={4}
+            refX={2.4}
+            refY={2}
+            orient="auto"
+          >
+            <path d="M0,0.6 L3,2 L0,3.4 Z" className={`arrow-worst${r}-head`} />
+          </marker>
+        ))}
       </defs>
 
       <g>{cells}</g>
@@ -423,9 +437,14 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
 
       {arrows &&
         [...arrows]
-          .sort((a, b) => b.rank - a.rank) // draw the best arrow last (on top)
+          // draw worst first, then best-on-top; within a group best rank last
+          .sort((a, b) => Number(!!b.worst) - Number(!!a.worst) || b.rank - a.rank)
           .map((a) =>
-            renderArrow(a, `arrow-rank${Math.min(2, a.rank)}`, `rk${a.rank}-${a.from}${a.to}`),
+            renderArrow(
+              a,
+              `${a.worst ? 'arrow-worst' : 'arrow-rank'}${Math.min(2, a.rank)}`,
+              `${a.worst ? 'w' : 'r'}k${a.rank}-${a.from}${a.to}`,
+            ),
           )}
       {hint && renderArrow(hint, 'arrow-hint')}
       {arrow && renderArrow(arrow, 'arrow-best')}

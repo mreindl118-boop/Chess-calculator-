@@ -495,6 +495,27 @@ textarea {
   pointer-events: none;
 }
 .arrow-rank2-head { fill: rgb(150 155 165 / 0.5); }
+.arrow-worst0 {
+  stroke: rgb(224 92 92 / 0.9);
+  stroke-width: 0.17;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.arrow-worst0-head { fill: rgb(224 92 92 / 0.9); }
+.arrow-worst1 {
+  stroke: rgb(224 92 92 / 0.62);
+  stroke-width: 0.13;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.arrow-worst1-head { fill: rgb(224 92 92 / 0.62); }
+.arrow-worst2 {
+  stroke: rgb(224 92 92 / 0.42);
+  stroke-width: 0.11;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.arrow-worst2-head { fill: rgb(224 92 92 / 0.42); }
 
 .drag-ghost {
   position: fixed;
@@ -850,13 +871,52 @@ textarea {
   font-weight: 650;
   flex: 1;
 }
-.calc-setup {
+.calc-scan {
   min-height: 38px;
   padding: 6px 14px;
 }
-.calc-scan {
+.calc-setup {
   min-height: 38px;
   padding: 6px 12px;
+}
+
+/* prominent "scan a photo" call-to-action shown on the blank Calculator */
+.scan-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-raised));
+  animation: card-in 220ms var(--ease-out);
+  transition: transform 130ms var(--ease-out), border-color 150ms;
+}
+.scan-hero:active {
+  transform: scale(0.99);
+}
+.scan-hero-icon {
+  font-size: 1.7rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.scan-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.scan-hero-text strong {
+  font-size: 1.02rem;
+}
+.scan-hero-text small {
+  color: var(--text-dim);
+  font-size: 0.83rem;
+  line-height: 1.4;
 }
 
 /* scan-a-board-image dialog */
@@ -1263,6 +1323,25 @@ textarea {
 .engine-line.rank-0 {
   border-color: rgb(92 185 117 / 0.55);
 }
+.engine-line.worst-0 {
+  border-color: rgb(224 92 92 / 0.55);
+}
+.move-group-label {
+  margin: 14px 0 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.move-group-label:first-child {
+  margin-top: 0;
+}
+.move-group-label.best {
+  color: var(--good);
+}
+.move-group-label.worst {
+  color: var(--danger);
+}
 .line-top {
   display: flex;
   gap: 9px;
@@ -1284,6 +1363,9 @@ textarea {
 .line-rank.r0 { background: var(--good); }
 .line-rank.r1 { background: #dcbc4a; color: #241f10; }
 .line-rank.r2 { background: #7d838d; }
+.line-rank.w0,
+.line-rank.w1,
+.line-rank.w2 { background: var(--danger); }
 .line-san {
   font-weight: 700;
   font-size: 1.08rem;

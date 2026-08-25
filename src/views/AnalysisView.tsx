@@ -13,6 +13,7 @@ import { useNav } from '../state/navStore';
 import { useSettings } from '../state/settingsStore';
 import { scoreToCp } from '../lib/engine/analysis';
 import { explainLine } from '../lib/engine/explain';
+import type { EngineInfo } from '../lib/engine/uci';
 import { playSound } from '../lib/audio/sounds';
 import { START_FEN, type Color, type PieceSymbol, type Square } from '../lib/chess/types';
 import { rungName } from '../lib/engine/calibration';
@@ -115,26 +116,41 @@ export function AnalysisView() {
   const evalCp = bestLine ? (turn === 'w' ? scoreToCp(bestLine) : -scoreToCp(bestLine)) : null;
 
   // Best moves at a glance: each engine line explained in plain language.
-  const { engineOn, editing, lines, fen: currentFen } = a;
-  const explained = useMemo(() => {
+  const { engineOn, editing, lines, worstLines, fen: currentFen } = a;
+  const explainAll = (src: EngineInfo[]) => {
     if (!engineOn || editing) return [];
-    return lines
+    return src
       .filter(Boolean)
       .map((line) => ({ line, ex: explainLine(currentFen, line) }))
-      .filter(
-        (x): x is { line: (typeof lines)[number]; ex: NonNullable<ReturnType<typeof explainLine>> } =>
-          !!x.ex,
-      );
-  }, [engineOn, editing, lines, currentFen]);
+      .filter((x): x is ExplainedMove => !!x.ex);
+  };
+  // Top three best moves and, when there are enough legal moves, the three
+  // worst (single worst first) — computed from separate engine passes so they
+  // never overlap.
+  const bestThree = useMemo(
+    () => explainAll(lines).slice(0, 3),
+    [engineOn, editing, lines, currentFen], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const worstThree = useMemo(
+    () => explainAll(worstLines).reverse(),
+    [engineOn, editing, worstLines, currentFen], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const suggestionArrows = useMemo(
-    () =>
-      explained.map((x, i) => ({
+    () => [
+      ...bestThree.map((x, i) => ({
         from: x.line.pv[0].slice(0, 2),
         to: x.line.pv[0].slice(2, 4),
         rank: i,
       })),
-    [explained],
+      ...worstThree.map((x, i) => ({
+        from: x.line.pv[0].slice(0, 2),
+        to: x.line.pv[0].slice(2, 4),
+        rank: i,
+        worst: true,
+      })),
+    ],
+    [bestThree, worstThree],
   );
 
   // ---- editor helpers (operate directly on the FEN) ----
@@ -379,6 +395,10 @@ export function AnalysisView() {
   }, [a.loadedGameAnalysis]);
 
   const currentPath = tree.pathTo(a.currentNodeId);
+  // The Calculator opens blank at the start position with nothing loaded —
+  // that's when we lead with the "scan a photo" call to action.
+  const isInitial =
+    a.fen === START_FEN && tree.mainline().length <= 1 && !a.loadedGameAnalysis;
 
   return (
     <div
@@ -456,15 +476,28 @@ export function AnalysisView() {
         </div>
       </div>
 
+      {!a.editing && isInitial && (
+        <button className="scan-hero" onClick={() => setShowScan(true)}>
+          <span className="scan-hero-icon">📷</span>
+          <span className="scan-hero-text">
+            <strong>Scan a position from a photo</strong>
+            <small>
+              Import a screenshot or picture of any board to see the best — and worst — moves.
+              You can also drag an image in.
+            </small>
+          </span>
+        </button>
+      )}
+
       {!a.editing && (
         <div className="calc-bar">
           <span className={`turn-dot ${turn === 'w' ? 'white' : 'black'}`} />
           <span className="calc-turn">{turn === 'w' ? 'White' : 'Black'} to move</span>
-          <button className="btn primary calc-setup" onClick={() => a.setEditing(true)}>
-            ✎ Set up board
-          </button>
-          <button className="btn subtle calc-scan" onClick={() => setShowScan(true)}>
+          <button className="btn primary calc-scan" onClick={() => setShowScan(true)}>
             📷 Scan image
+          </button>
+          <button className="btn subtle calc-setup" onClick={() => a.setEditing(true)}>
+            ✎ Set up
           </button>
         </div>
       )}
@@ -603,38 +636,25 @@ export function AnalysisView() {
                 ▶
               </button>
             </div>
-            {a.engineOn && explained.length === 0 && (
+            {a.engineOn && bestThree.length === 0 && (
               <p className="field-hint">Thinking…</p>
             )}
-            {a.engineOn &&
-              explained.map(({ line, ex }, i) => {
-                const white = ex.evalWhiteCp;
-                const label =
-                  line.scoreMate !== undefined
-                    ? `#${Math.abs(line.scoreMate)}`
-                    : (white / 100).toFixed(2);
-                return (
-                  <button
-                    key={line.multipv}
-                    className={`engine-line rank-${Math.min(2, i)}`}
-                    onClick={() => {
-                      const uci = line.pv[0];
-                      if (uci) attemptMove(uci.slice(0, 2), uci.slice(2, 4));
-                    }}
-                  >
-                    <div className="line-top">
-                      <span className={`line-rank r${Math.min(2, i)}`}>{i + 1}</span>
-                      <span className="line-san">{ex.san}</span>
-                      <span className={`line-eval ${white >= 0 ? 'pos' : 'neg'}`}>
-                        {white >= 0 && line.scoreMate === undefined ? '+' : ''}
-                        {label}
-                      </span>
-                    </div>
-                    <p className="line-explain">{ex.text}</p>
-                    <span className="line-pv">{ex.continuation}</span>
-                  </button>
-                );
-              })}
+            {a.engineOn && bestThree.length > 0 && (
+              <>
+                <p className="move-group-label best">✔ Best moves</p>
+                {bestThree.map((x, i) => (
+                  <MoveCard key={x.line.multipv} x={x} rank={i} onPlay={attemptMove} />
+                ))}
+              </>
+            )}
+            {a.engineOn && worstThree.length > 0 && (
+              <>
+                <p className="move-group-label worst">✕ Worst moves — avoid these</p>
+                {worstThree.map((x, i) => (
+                  <MoveCard key={x.line.multipv} x={x} rank={i} worst onPlay={attemptMove} />
+                ))}
+              </>
+            )}
           </div>
 
           <MoveTreeView
@@ -806,6 +826,50 @@ const VERDICT_META: Record<
   mistake: { label: 'Mistake', chip: 'v-mistake' },
   blunder: { label: 'Blunder', chip: 'v-blunder' },
 };
+
+type ExplainedMove = {
+  line: EngineInfo;
+  ex: NonNullable<ReturnType<typeof explainLine>>;
+};
+
+/** One ranked-move card in the best/worst lists; tapping it plays the move. */
+function MoveCard({
+  x,
+  rank,
+  worst,
+  onPlay,
+}: {
+  x: ExplainedMove;
+  rank: number;
+  worst?: boolean;
+  onPlay: (from: Square, to: Square) => void;
+}) {
+  const { line, ex } = x;
+  const white = ex.evalWhiteCp;
+  const label =
+    line.scoreMate !== undefined ? `#${Math.abs(line.scoreMate)}` : (white / 100).toFixed(2);
+  const r = Math.min(2, rank);
+  return (
+    <button
+      className={`engine-line ${worst ? `worst-${r}` : `rank-${r}`}`}
+      onClick={() => {
+        const uci = line.pv[0];
+        if (uci) onPlay(uci.slice(0, 2), uci.slice(2, 4));
+      }}
+    >
+      <div className="line-top">
+        <span className={`line-rank ${worst ? 'w' : 'r'}${r}`}>{worst ? '✕' : rank + 1}</span>
+        <span className="line-san">{ex.san}</span>
+        <span className={`line-eval ${white >= 0 ? 'pos' : 'neg'}`}>
+          {white >= 0 && line.scoreMate === undefined ? '+' : ''}
+          {label}
+        </span>
+      </div>
+      <p className="line-explain">{ex.text}</p>
+      <span className="line-pv">{ex.continuation}</span>
+    </button>
+  );
+}
 
 function VerdictBanner({ verdict }: { verdict: MoveVerdict }) {
   const meta = VERDICT_META[verdict.cls];
