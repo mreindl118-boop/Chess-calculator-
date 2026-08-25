@@ -94,7 +94,7 @@ export function AnalysisView() {
   const dragDepth = useRef(0);
   const [playElo, setPlayElo] = useState(1600);
   const [playColor, setPlayColor] = useState<Color>('w');
-  const [orientation, setOrientation] = useState<Color>('w');
+  const [flipped, setFlipped] = useState(false);
 
   // open a saved game passed via nav params
   const gameId = nav.params.gameId;
@@ -107,6 +107,10 @@ export function AnalysisView() {
 
   const tree = analysisTree();
   const turn = (a.fen.split(' ')[1] ?? 'w') as Color;
+  // With auto-flip on, the side to move sits at the bottom (the editor keeps
+  // a stable view); the Flip button inverts whichever base applies.
+  const orientationBase: Color = settings.autoFlip && !a.editing ? turn : 'w';
+  const orientation: Color = flipped ? (orientationBase === 'w' ? 'b' : 'w') : orientationBase;
   const bestLine = a.lines[0];
   const evalCp = bestLine ? (turn === 'w' ? scoreToCp(bestLine) : -scoreToCp(bestLine)) : null;
 
@@ -412,7 +416,7 @@ export function AnalysisView() {
           ‹ Home
         </button>
         <span className="game-tag">Calculator</span>
-        <button className="btn subtle" onClick={() => setOrientation(orientation === 'w' ? 'b' : 'w')}>
+        <button className="btn subtle" onClick={() => setFlipped(!flipped)}>
           ⇅ Flip
         </button>
       </div>

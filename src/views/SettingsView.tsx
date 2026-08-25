@@ -94,7 +94,7 @@ export function SettingsView() {
         {toggle('coordinates', 'Coordinates')}
         {toggle('legalDots', 'Legal move dots')}
         {toggle('premove', 'Premove', 'Queue your reply while the engine thinks')}
-        {toggle('autoFlipPvP', 'Flip board each move in pass & play')}
+        {toggle('autoFlip', 'Auto-flip board to the side to move')}
         {toggle('evalBar', 'Eval bar in casual games')}
       </section>
 

@@ -33,9 +33,9 @@ export function PlayView() {
   const orientation: Color = useMemo(() => {
     if (!config) return 'w';
     if (config.mode === 'hve') return config.humanColor ?? 'w';
-    if (config.mode === 'pvp' && settings.autoFlipPvP) return chess.turn;
+    if (config.mode === 'pvp' && settings.autoFlip) return chess.turn;
     return 'w';
-  }, [config, chess.turn, settings.autoFlipPvP]);
+  }, [config, chess.turn, settings.autoFlip]);
 
   const movableColor: Color | 'both' = useMemo(() => {
     if (!config) return 'both';

@@ -14,7 +14,13 @@ export interface Settings {
   haptics: boolean;
   legalDots: boolean;
   premove: boolean;
-  autoFlipPvP: boolean;
+  /**
+   * Keep the side to move at the bottom of the board — in pass & play
+   * (chess and checkers) and in the Calculator — so the viewer always sees
+   * the position from the moving player's perspective. Games against the
+   * engine always stay from the human's side.
+   */
+  autoFlip: boolean;
   evalBar: boolean;
   coordinates: boolean;
   /**
@@ -35,7 +41,7 @@ const DEFAULTS: Settings = {
   haptics: true,
   legalDots: true,
   premove: true,
-  autoFlipPvP: false,
+  autoFlip: true,
   evalBar: true,
   coordinates: true,
   threadedEngine: false,
@@ -51,7 +57,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
   ...DEFAULTS,
   loaded: false,
   load: async () => {
-    const stored = await kvGet<Partial<Settings>>('settings');
+    const stored = await kvGet<Partial<Settings> & { autoFlipPvP?: boolean }>('settings');
+    // migrate the old pass&play-only flip flag to the app-wide setting
+    if (stored && stored.autoFlip === undefined && stored.autoFlipPvP !== undefined) {
+      stored.autoFlip = stored.autoFlipPvP;
+    }
     const merged = { ...DEFAULTS, ...(stored ?? {}) };
     setSoundEnabled(merged.sound);
     setHapticsEnabled(merged.haptics);
@@ -71,11 +81,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
 function pick(s: SettingsState): Settings {
   const {
     boardTheme, pieceStyle, darkMode, sound, haptics,
-    legalDots, premove, autoFlipPvP, evalBar, coordinates, threadedEngine,
+    legalDots, premove, autoFlip, evalBar, coordinates, threadedEngine,
   } = s;
   return {
     boardTheme, pieceStyle, darkMode, sound, haptics,
-    legalDots, premove, autoFlipPvP, evalBar, coordinates, threadedEngine,
+    legalDots, premove, autoFlip, evalBar, coordinates, threadedEngine,
   };
 }
 

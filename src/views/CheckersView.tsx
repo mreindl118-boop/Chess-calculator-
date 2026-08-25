@@ -28,9 +28,9 @@ export function CheckersView() {
   const orientation: CheckersColor = useMemo(() => {
     if (!config) return 'w';
     if (config.mode === 'hva') return config.humanColor ?? 'w';
-    if (config.mode === 'pvp' && settings.autoFlipPvP) return g.turn;
+    if (config.mode === 'pvp' && settings.autoFlip) return g.turn;
     return 'w';
-  }, [config, g.turn, settings.autoFlipPvP]);
+  }, [config, g.turn, settings.autoFlip]);
 
   if (!config) {
     return (
