@@ -73,6 +73,10 @@ let tree = new MoveTree(START_FEN);
 let searchGeneration = 0;
 /** Depth of the quick full-width pass that ranks the worst moves. */
 const WORST_SCAN_DEPTH = 12;
+/** Minimum gap between committed best-move updates, to keep the list calm. */
+const FLUSH_MS = 350;
+/** Two moves within this many centipawns keep their existing rank (no swap). */
+const ORDER_HYSTERESIS = 30;
 let pendingVerdict: PendingVerdict | null = null;
 
 export function analysisTree(): MoveTree {
@@ -116,19 +120,58 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
         if (generation !== searchGeneration) return;
         const ranked = all.filter(Boolean);
         // seed the best list too so the UI fills instantly, then refine below
-        set({ worstLines: ranked.slice(-3), lines: ranked.slice(0, 5) });
+        set({ worstLines: ranked.slice(-3), lines: ranked.slice(0, 5), depth: WORST_SCAN_DEPTH });
       }
 
       // Phase 2 — focused, infinite, full-strength search of the best moves.
-      engine.setOption('MultiPV', Math.max(1, Math.min(legalCount, 5)));
+      //
+      // Anti-bounce: the raw engine stream revises the ranking many times per
+      // second at low depth (moves swap slots, evals flicker, board arrows
+      // jump). Instead of showing every partial update, we buffer the current
+      // depth's lines and only *commit* a complete, fully-ranked set when a
+      // depth finishes — and no more often than once per FLUSH_MS. The result
+      // updates in calm, whole steps rather than thrashing.
+      const bestPv = Math.max(1, Math.min(legalCount, 5));
+      engine.setOption('MultiPV', bestPv);
       engine.position(fen);
+
+      const buf: EngineInfo[] = [];
+      // Start from the depth already on screen (the shallow seed) so early,
+      // shallow phase-2 updates never downgrade what the user is looking at.
+      let curDepth = get().depth;
+      let lastCommitAt = 0;
+      // Sticky order: keep near-equal moves in their existing slots so the
+      // list (and the board arrows) don't swap back and forth between two
+      // moves the engine rates within a whisker of each other.
+      let order: string[] = get().lines.map((l) => l.pv[0]);
+      const commit = (force: boolean) => {
+        if (generation !== searchGeneration) return;
+        const now = Date.now();
+        if (!force && now - lastCommitAt < FLUSH_MS) return;
+        const snapshot = buf.filter((l) => l && l.pv[0]).slice(0, bestPv);
+        if (snapshot.length === 0) return;
+        const slot = (info: EngineInfo) => {
+          const i = order.indexOf(info.pv[0]);
+          return i < 0 ? order.length + 1 : i;
+        };
+        snapshot.sort((x, y) => {
+          const diff = scoreToCp(y) - scoreToCp(x);
+          // clear winner (>= hysteresis) reorders; otherwise hold prior order
+          return Math.abs(diff) >= ORDER_HYSTERESIS ? diff : slot(x) - slot(y);
+        });
+        order = snapshot.map((l) => l.pv[0]);
+        lastCommitAt = now;
+        set({ lines: snapshot, depth: curDepth });
+      };
+
       await engine.go({ infinite: true }, (info) => {
         if (generation !== searchGeneration) return;
-        set((s) => {
-          const lines = [...s.lines];
-          lines[info.multipv - 1] = info;
-          return { lines, depth: info.multipv === 1 ? info.depth : s.depth };
-        });
+        // A new depth's first line means the previous depth is fully buffered.
+        if (info.multipv === 1 && info.depth > curDepth) {
+          commit(false);
+          curDepth = info.depth;
+        }
+        buf[info.multipv - 1] = info;
         resolveVerdict(fen, info);
       });
     });

@@ -871,52 +871,71 @@ textarea {
   font-weight: 650;
   flex: 1;
 }
+.calc-new {
+  min-height: 38px;
+  padding: 6px 16px;
+}
 .calc-scan {
   min-height: 38px;
-  padding: 6px 14px;
+  padding: 6px 12px;
 }
 .calc-setup {
   min-height: 38px;
   padding: 6px 12px;
 }
 
-/* prominent "scan a photo" call-to-action shown on the blank Calculator */
-.scan-hero {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  color: var(--text);
-  font-family: inherit;
-  padding: 14px 16px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-raised));
-  animation: card-in 220ms var(--ease-out);
-  transition: transform 130ms var(--ease-out), border-color 150ms;
-}
-.scan-hero:active {
-  transform: scale(0.99);
-}
-.scan-hero-icon {
-  font-size: 1.7rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.scan-hero-text {
+/* "Paste a game to calculate" landing screen — the Calculator's front door */
+.pgn-hero {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 12px;
+  animation: card-in 240ms var(--ease-out);
 }
-.scan-hero-text strong {
-  font-size: 1.02rem;
+.pgn-hero-title {
+  margin: 6px 0 0;
+  font-size: 1.32rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
 }
-.scan-hero-text small {
+.pgn-hero-sub {
+  margin: 0;
   color: var(--text-dim);
-  font-size: 0.83rem;
-  line-height: 1.4;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.pgn-hero-input {
+  width: 100%;
+  min-height: 190px;
+  resize: vertical;
+  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--bg-sunken);
+  color: var(--text);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 8%, transparent);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.pgn-hero-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.pgn-hero-input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+.pgn-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pgn-hero-actions .btn.primary {
+  min-height: 42px;
+  padding: 8px 22px;
+  font-size: 1rem;
 }
 
 /* scan-a-board-image dialog */

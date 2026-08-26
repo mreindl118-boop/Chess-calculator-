@@ -366,8 +366,9 @@ export function AnalysisView() {
   };
 
   const onDrop = (e: React.DragEvent) => {
-    if ((e.target as HTMLElement).tagName === 'TEXTAREA') {
-      // let the browser drop text into the PGN box normally
+    const hasFiles = (e.dataTransfer.files?.length ?? 0) > 0;
+    if (!hasFiles && (e.target as HTMLElement).tagName === 'TEXTAREA') {
+      // let the browser drop plain text into the PGN box normally
       dragDepth.current = 0;
       setDropActive(false);
       return;
@@ -396,9 +397,35 @@ export function AnalysisView() {
 
   const currentPath = tree.pathTo(a.currentNodeId);
   // The Calculator opens blank at the start position with nothing loaded —
-  // that's when we lead with the "scan a photo" call to action.
+  // that's the "paste a game" landing screen.
   const isInitial =
     a.fen === START_FEN && tree.mainline().length <= 1 && !a.loadedGameAnalysis;
+  const landing = isInitial && !a.editing;
+
+  // Zero-click paste: on the landing screen, pasting a PGN (or FEN) anywhere
+  // analyzes it immediately; pasting an image opens the scanner. Uses a ref so
+  // the listener needn't re-subscribe on every keystroke.
+  const importRef = useRef(importText);
+  importRef.current = importText;
+  useEffect(() => {
+    if (!landing || showScan) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const items = [...(e.clipboardData?.items ?? [])];
+      const image = items.find((i) => i.type.startsWith('image/'));
+      if (image) {
+        const f = image.getAsFile();
+        if (f) {
+          setScanFile(f);
+          setShowScan(true);
+        }
+        return;
+      }
+      const text = e.clipboardData?.getData('text') ?? '';
+      if (text.trim()) importRef.current(text);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [landing, showScan]);
 
   return (
     <div
@@ -441,6 +468,7 @@ export function AnalysisView() {
         </button>
       </div>
 
+      {!landing && (
       <div className="board-row">
         {!a.editing && a.engineOn && <EvalBar cp={evalCp} orientation={orientation} />}
         <div className="board-wrap" data-theme-board={settings.boardTheme} ref={boardWrapRef}>
@@ -475,26 +503,51 @@ export function AnalysisView() {
           )}
         </div>
       </div>
-
-      {!a.editing && isInitial && (
-        <button className="scan-hero" onClick={() => setShowScan(true)}>
-          <span className="scan-hero-icon">📷</span>
-          <span className="scan-hero-text">
-            <strong>Scan a position from a photo</strong>
-            <small>
-              Import a screenshot or picture of any board to see the best — and worst — moves.
-              You can also drag an image in.
-            </small>
-          </span>
-        </button>
       )}
 
-      {!a.editing && (
+      {landing && (
+        <div className="pgn-hero">
+          <h2 className="pgn-hero-title">Paste a game to calculate</h2>
+          <p className="pgn-hero-sub">
+            Paste your PGN and it analyzes instantly — no other clicks needed. A FEN works too, and
+            you can drag a .pgn file or a board photo anywhere on this screen.
+          </p>
+          <textarea
+            className="pgn-hero-input"
+            autoFocus
+            value={pgnText}
+            onChange={(e) => setPgnText(e.target.value)}
+            placeholder={'1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 …\n\nor a FEN: rnbqkbnr/pppppppp/8/8/…'}
+            spellCheck={false}
+          />
+          <div className="pgn-hero-actions">
+            <button
+              className="btn primary"
+              disabled={!pgnText.trim()}
+              onClick={() => importText(pgnText)}
+            >
+              Calculate
+            </button>
+            <button className="btn subtle" onClick={() => setShowScan(true)}>
+              📷 Scan a photo
+            </button>
+            <button className="btn subtle" onClick={() => a.setEditing(true)}>
+              ✎ Set up board
+            </button>
+          </div>
+          {a.error && <p className="field-error">{a.error}</p>}
+        </div>
+      )}
+
+      {!a.editing && !landing && (
         <div className="calc-bar">
           <span className={`turn-dot ${turn === 'w' ? 'white' : 'black'}`} />
           <span className="calc-turn">{turn === 'w' ? 'White' : 'Black'} to move</span>
-          <button className="btn primary calc-scan" onClick={() => setShowScan(true)}>
-            📷 Scan image
+          <button className="btn primary calc-new" onClick={resetAll}>
+            ↺ New game
+          </button>
+          <button className="btn subtle calc-scan" onClick={() => setShowScan(true)}>
+            📷 Scan
           </button>
           <button className="btn subtle calc-setup" onClick={() => a.setEditing(true)}>
             ✎ Set up
@@ -617,7 +670,7 @@ export function AnalysisView() {
           </div>
           {editorValidation && <p className="field-error">{editorValidation}</p>}
         </div>
-      ) : (
+      ) : landing ? null : (
         <>
           <div className="engine-panel">
             <div className="engine-head">
