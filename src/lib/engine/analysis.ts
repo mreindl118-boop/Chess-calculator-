@@ -35,6 +35,36 @@ export function scoreToCp(info: Pick<EngineInfo, 'scoreCp' | 'scoreMate'>): numb
   return info.scoreCp ?? 0;
 }
 
+/**
+ * Rank engine lines best-first, but keep near-equal moves in their prior slots
+ * so the displayed order (and the board arrows) don't flicker between choices
+ * the engine rates within `hysteresis` centipawns of each other.
+ *
+ * A strict score sort establishes a valid total order; then a single bounded
+ * adjacent-swap pass restores prior order ONLY for neighbours within the
+ * whisker. This is transitive and cannot lift a move `hysteresis` cp or more
+ * worse above a better one (unlike embedding the sticky rule in the comparator,
+ * which is intransitive and can corrupt the sort).
+ */
+export function stickyReorder(
+  lines: EngineInfo[],
+  prevOrder: string[],
+  hysteresis: number,
+): EngineInfo[] {
+  const slot = (info: EngineInfo) => {
+    const i = prevOrder.indexOf(info.pv[0]);
+    return i < 0 ? prevOrder.length + 1 : i;
+  };
+  const sorted = [...lines].sort((x, y) => scoreToCp(y) - scoreToCp(x));
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const gap = Math.abs(scoreToCp(sorted[i]) - scoreToCp(sorted[i + 1]));
+    if (gap < hysteresis && slot(sorted[i]) > slot(sorted[i + 1])) {
+      [sorted[i], sorted[i + 1]] = [sorted[i + 1], sorted[i]];
+    }
+  }
+  return sorted;
+}
+
 /** lichess-style win probability (0-100) from a white-POV centipawn eval. */
 export function winPercent(cpWhite: number): number {
   const clamped = Math.max(-1500, Math.min(1500, cpWhite));

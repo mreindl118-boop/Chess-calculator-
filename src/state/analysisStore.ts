@@ -6,7 +6,13 @@ import { getAnalysisEngineRaw, withAnalysisEngine } from './engineHub';
 import type { EngineInfo } from '../lib/engine/uci';
 import { exportPgn, importPgn } from '../lib/chess/pgn';
 import { db } from '../lib/db/schema';
-import { classify, scoreToCp, type GameAnalysis, type MoveClass } from '../lib/engine/analysis';
+import {
+  classify,
+  scoreToCp,
+  stickyReorder,
+  type GameAnalysis,
+  type MoveClass,
+} from '../lib/engine/analysis';
 
 /** Live grade of the move the user just played, versus the engine's best. */
 export interface MoveVerdict {
@@ -41,6 +47,8 @@ export interface AnalysisState {
   /** bumped whenever the tree structure changes, to re-render the tree view */
   treeVersion: number;
   engineOn: boolean;
+  /** true only on the untouched front-door screen (nothing loaded yet) */
+  blank: boolean;
   lines: EngineInfo[];
   /** the three worst legal moves (from a quick full-width ranking pass) */
   worstLines: EngineInfo[];
@@ -53,6 +61,8 @@ export interface AnalysisState {
   verdict: MoveVerdict | null;
 
   setRoot: (fen: string, variant?: ChessVariant) => void;
+  /** Return to the untouched front-door screen (nothing loaded, engine off). */
+  clear: () => void;
   tryMove: (from: Square, to: Square, promotion?: PieceSymbol) => boolean;
   needsPromotion: (from: Square, to: Square) => boolean;
   goto: (nodeId: number) => void;
@@ -139,41 +149,54 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
       // Start from the depth already on screen (the shallow seed) so early,
       // shallow phase-2 updates never downgrade what the user is looking at.
       let curDepth = get().depth;
-      let lastCommitAt = 0;
-      // Sticky order: keep near-equal moves in their existing slots so the
-      // list (and the board arrows) don't swap back and forth between two
-      // moves the engine rates within a whisker of each other.
+      let lastPublishAt = 0;
+      let stable: EngineInfo[] | null = null; // last COMPLETE depth's lines
+      let stableDepth = curDepth;
+      let publishedDepth = curDepth; // deepest depth already on screen
+      // Sticky order: keep near-equal moves in their existing slots so the list
+      // (and the board arrows) don't swap between moves the engine rates within
+      // a whisker of each other.
       let order: string[] = get().lines.map((l) => l.pv[0]);
-      const commit = (force: boolean) => {
-        if (generation !== searchGeneration) return;
+
+      const publish = (force: boolean) => {
+        if (generation !== searchGeneration || !stable) return;
         const now = Date.now();
-        if (!force && now - lastCommitAt < FLUSH_MS) return;
-        const snapshot = buf.filter((l) => l && l.pv[0]).slice(0, bestPv);
-        if (snapshot.length === 0) return;
-        const slot = (info: EngineInfo) => {
-          const i = order.indexOf(info.pv[0]);
-          return i < 0 ? order.length + 1 : i;
-        };
-        snapshot.sort((x, y) => {
-          const diff = scoreToCp(y) - scoreToCp(x);
-          // clear winner (>= hysteresis) reorders; otherwise hold prior order
-          return Math.abs(diff) >= ORDER_HYSTERESIS ? diff : slot(x) - slot(y);
-        });
-        order = snapshot.map((l) => l.pv[0]);
-        lastCommitAt = now;
-        set({ lines: snapshot, depth: curDepth });
+        if (!force && now - lastPublishAt < FLUSH_MS) return;
+        // On a forced (timer) flush there's nothing new unless a deeper depth
+        // completed since we last drew — avoids redundant re-renders.
+        if (force && stableDepth <= publishedDepth) return;
+        const sorted = stickyReorder(stable, order, ORDER_HYSTERESIS);
+        order = sorted.map((l) => l.pv[0]);
+        lastPublishAt = now;
+        publishedDepth = stableDepth;
+        set({ lines: sorted, depth: stableDepth });
       };
 
-      await engine.go({ infinite: true }, (info) => {
-        if (generation !== searchGeneration) return;
-        // A new depth's first line means the previous depth is fully buffered.
-        if (info.multipv === 1 && info.depth > curDepth) {
-          commit(false);
-          curDepth = info.depth;
-        }
-        buf[info.multipv - 1] = info;
-        resolveVerdict(fen, info);
-      });
+      // The infinite search never resolves on its own (Stockfish busy-waits at
+      // max depth), and a boundary publish only fires when the NEXT depth
+      // begins — so without this timer the deepest completed depth (and any
+      // eval/best-move swing on it) would never be shown once the engine
+      // plateaus, and a throttled tail would freeze the display.
+      const flush = setInterval(() => publish(true), FLUSH_MS);
+      try {
+        await engine.go({ infinite: true }, (info) => {
+          if (generation !== searchGeneration) return;
+          // A new depth's first line means the previous depth is fully buffered.
+          if (info.multipv === 1 && info.depth > curDepth) {
+            const snap = buf.filter((l) => l && l.pv[0]).slice(0, bestPv);
+            if (snap.length) {
+              stable = snap;
+              stableDepth = curDepth;
+            }
+            curDepth = info.depth;
+            publish(false);
+          }
+          buf[info.multipv - 1] = info;
+          resolveVerdict(fen, info);
+        });
+      } finally {
+        clearInterval(flush);
+      }
     });
   }
 
@@ -217,6 +240,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     fen: START_FEN,
     treeVersion: 0,
     engineOn: false,
+    blank: true,
     lines: [],
     worstLines: [],
     depth: 0,
@@ -229,10 +253,10 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     setRoot: (fen, variant) => {
       tree = new MoveTree(fen);
       pendingVerdict = null;
-      // The Calculator should just work: loading any real position turns the
-      // engine on so best/worst moves appear immediately. The blank start
-      // position stays quiet (that's the scan-a-photo landing screen).
-      const engineOn = fen !== START_FEN;
+      // setRoot is always an explicit load, so the engine turns on and best/
+      // worst moves appear immediately — even for the standard start position
+      // (opening theory is worth showing). Only clear() returns to the blank
+      // front-door screen.
       set({
         verdict: null,
         rootFen: fen,
@@ -243,9 +267,33 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
         loadedGameAnalysis: null,
         loadedGameId: null,
         error: null,
-        engineOn,
+        engineOn: true,
+        blank: false,
       });
       restart();
+    },
+
+    clear: () => {
+      searchGeneration++;
+      pendingVerdict = null;
+      getAnalysisEngineRaw().stop();
+      tree = new MoveTree(START_FEN);
+      set({
+        verdict: null,
+        rootFen: START_FEN,
+        variant: 'standard',
+        currentNodeId: 0,
+        fen: START_FEN,
+        treeVersion: get().treeVersion + 1,
+        loadedGameAnalysis: null,
+        loadedGameId: null,
+        error: null,
+        engineOn: false,
+        blank: true,
+        lines: [],
+        worstLines: [],
+        depth: 0,
+      });
     },
 
     tryMove: (from, to, promotion) => {
@@ -375,6 +423,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
           editing: false,
           verdict: null,
           engineOn: true,
+          blank: false,
         });
         restart();
         return true;
@@ -427,6 +476,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
           error: null,
           editing: false,
           verdict: null,
+          blank: false,
         });
         restart();
         return true;

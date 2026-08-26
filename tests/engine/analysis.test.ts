@@ -4,9 +4,10 @@ import {
   classify,
   moveAccuracy,
   scoreToCp,
+  stickyReorder,
   winPercent,
 } from '../../src/lib/engine/analysis';
-import { parseInfoLine } from '../../src/lib/engine/uci';
+import { parseInfoLine, type EngineInfo } from '../../src/lib/engine/uci';
 
 describe('score plumbing', () => {
   it('parses UCI info lines', () => {
@@ -51,6 +52,62 @@ describe('classification', () => {
     expect(moveAccuracy(50, 50)).toBeGreaterThan(99);
     expect(moveAccuracy(50, 30)).toBeLessThan(moveAccuracy(50, 45));
     expect(moveAccuracy(90, 5)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('stickyReorder (best-move stability)', () => {
+  const line = (uci: string, cp: number): EngineInfo => ({
+    depth: 20,
+    multipv: 1,
+    pv: [uci],
+    scoreCp: cp,
+  });
+  const ucis = (ls: EngineInfo[]) => ls.map((l) => l.pv[0]);
+
+  it('never leaves a clearly-worse move on top (the intransitivity bug)', () => {
+    // The reviewer's counterexample: a hysteresis chain A=0,B=15,C=40 (H=30),
+    // engine emits best-first [C,B,A], prior order [A,B,C]. The old comparator
+    // (Math.abs(diff)>=H ? diff : slotdiff) is intransitive and could pin A
+    // (40cp worse than the best) into slot 0. The guarantee we need: slot 0 is
+    // always within a whisker of the true best, so the highlighted move and the
+    // eval bar can never be a blunder. (B may legitimately sit above C — they
+    // are within the whisker and B ranked higher before: that's the anti-flicker
+    // behaviour, not a bug.)
+    const A = line('a1a2', 0);
+    const B = line('b1b2', 15);
+    const C = line('c1c2', 40);
+    const out = stickyReorder([C, B, A], ['a1a2', 'b1b2', 'c1c2'], 30);
+    const best = Math.max(...out.map(scoreToCp));
+    expect(scoreToCp(out[0])).toBeGreaterThanOrEqual(best - 30); // slot 0 within a whisker of best
+    expect(out[out.length - 1].pv[0]).toBe('a1a2'); // the 40cp-worse move stays last
+  });
+
+  it('is order-independent for identical inputs (a valid comparator)', () => {
+    // Feed the same three lines in several permutations; slot 0 must always be
+    // within a whisker of the best (an intransitive sort would vary the output).
+    const mk = () => [line('a1a2', 0), line('b1b2', 15), line('c1c2', 40)];
+    for (const perm of [[0, 1, 2], [2, 1, 0], [1, 2, 0], [2, 0, 1]]) {
+      const arr = mk();
+      const out = stickyReorder(perm.map((i) => arr[i]), ['a1a2', 'b1b2', 'c1c2'], 30);
+      expect(scoreToCp(out[0])).toBeGreaterThanOrEqual(40 - 30);
+      expect(out[out.length - 1].pv[0]).toBe('a1a2');
+    }
+  });
+
+  it('holds near-equal neighbours in their prior slots (no flicker)', () => {
+    // Two moves within the whisker keep their prior order even when the engine
+    // momentarily rates the second one a hair higher.
+    const first = line('e2e4', 18);
+    const second = line('d2d4', 22);
+    const out = stickyReorder([second, first], ['e2e4', 'd2d4'], 30);
+    expect(ucis(out)).toEqual(['e2e4', 'd2d4']);
+  });
+
+  it('promotes a move once it is clearly better than the whisker', () => {
+    const incumbent = line('e2e4', 20);
+    const challenger = line('d2d4', 60); // 40cp better, beyond hysteresis
+    const out = stickyReorder([incumbent, challenger], ['e2e4', 'd2d4'], 30);
+    expect(out[0].pv[0]).toBe('d2d4');
   });
 });
 

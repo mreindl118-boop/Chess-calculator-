@@ -342,13 +342,13 @@ export function AnalysisView() {
     nav.go('play');
   };
 
-  /** Back to a clean start position: tree, PGN, loaded game, verdicts — all gone. */
+  /** Back to the blank front-door screen: tree, PGN, loaded game — all gone. */
   const resetAll = () => {
     setPgnText('');
     setFenInput('');
     setShowPgn(false);
     setScanNote(null);
-    a.setRoot(START_FEN, 'standard');
+    a.clear();
   };
 
   /** Dropped or picked text: try FEN first, then PGN; surface parse errors in the panel. */
@@ -396,11 +396,10 @@ export function AnalysisView() {
   }, [a.loadedGameAnalysis]);
 
   const currentPath = tree.pathTo(a.currentNodeId);
-  // The Calculator opens blank at the start position with nothing loaded —
-  // that's the "paste a game" landing screen.
-  const isInitial =
-    a.fen === START_FEN && tree.mainline().length <= 1 && !a.loadedGameAnalysis;
-  const landing = isInitial && !a.editing;
+  // The "paste a game" landing screen shows only on the untouched front door
+  // (store `blank` flag) — an explicitly loaded/built start position is not
+  // blank, so it renders the board and analysis normally.
+  const landing = a.blank && !a.editing;
 
   // Zero-click paste: on the landing screen, pasting a PGN (or FEN) anywhere
   // analyzes it immediately; pasting an image opens the scanner. Uses a ref so
