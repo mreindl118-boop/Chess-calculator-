@@ -468,8 +468,13 @@ export function AnalysisView() {
           ‹ Home
         </button>
         <span className="game-tag">Calculator</span>
-        <button className="btn subtle" onClick={() => setFlipped(!flipped)}>
-          ⇅ Flip
+        <button
+          className={`btn subtle flip-toggle ${flipped ? 'on' : ''}`}
+          aria-pressed={flipped}
+          title="Flip the board view"
+          onClick={() => setFlipped(!flipped)}
+        >
+          ⇅ Flip {flipped ? 'on' : 'off'}
         </button>
       </div>
 

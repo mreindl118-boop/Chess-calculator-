@@ -1353,6 +1353,16 @@ textarea {
   border-color: rgb(224 92 92 / 0.55);
 }
 
+/* board-flip toggle in the Calculator header (off by default, shows its state) */
+.flip-toggle {
+  border: 1px solid var(--border);
+}
+.flip-toggle.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-raised));
+  color: var(--text);
+}
+
 /* ---- Brilliant Moves ---- */
 .brilliant-bar {
   display: flex;
