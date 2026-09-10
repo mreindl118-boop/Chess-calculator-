@@ -1,7 +1,15 @@
 import type { EngineInfo, UciEngine } from './uci';
 import type { Color, RecordedMove } from '../chess/types';
+import { BRILLIANT_CONFIG, isBrilliantPlayed } from './brilliant';
 
-export type MoveClass = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
+export type MoveClass =
+  | 'brilliant'
+  | 'best'
+  | 'excellent'
+  | 'good'
+  | 'inaccuracy'
+  | 'mistake'
+  | 'blunder';
 
 export interface MoveEval {
   /** eval of the position before the move, white POV centipawns (mate mapped to ±(10000-plies)) */
@@ -88,6 +96,7 @@ export function classify(cpLoss: number, playedBest: boolean): MoveClass {
 }
 
 const emptyCounts = (): Record<MoveClass, number> => ({
+  brilliant: 0,
   best: 0,
   excellent: 0,
   good: 0,
@@ -105,6 +114,8 @@ export function aggregateAnalysis(
   evals: number[],
   bestMoves: string[],
   moves: Pick<RecordedMove, 'color' | 'uci'>[],
+  /** per-move flag: the played move was a mate-verified sacrifice (Brilliant, !!) */
+  brilliantFlags?: boolean[],
 ): GameAnalysis {
   const out: MoveEval[] = [];
   const acplSum = { w: 0, b: 0 };
@@ -119,10 +130,12 @@ export function aggregateAnalysis(
     const after = evals[i + 1];
     const cpLoss = Math.max(0, sign * (before - after));
     const playedBest = moves[i].uci === bestMoves[i];
+    const isBrilliant = brilliantFlags?.[i] ?? false;
     const wpBefore = color === 'w' ? winPercent(before) : 100 - winPercent(before);
     const wpAfter = color === 'w' ? winPercent(after) : 100 - winPercent(after);
-    const acc = playedBest ? 100 : moveAccuracy(wpBefore, wpAfter);
-    const cls = classify(cpLoss, playedBest);
+    // Brilliant counts as Best for accuracy math.
+    const acc = playedBest || isBrilliant ? 100 : moveAccuracy(wpBefore, wpAfter);
+    const cls: MoveClass = isBrilliant ? 'brilliant' : classify(cpLoss, playedBest);
     out.push({
       evalBefore: before,
       evalAfter: after,
@@ -214,5 +227,18 @@ export async function analyzeGame(
   }
 
   if (opts.signal?.aborted) return null;
-  return aggregateAnalysis(evals, bestMoves, moves);
+
+  // Brilliant (!!) detection: a played move that meets the sacrifice definition
+  // AND leaves the mover with a forced mate (reuses the live hunt's detector).
+  const mateBar = MATE_SCORE - 2 * BRILLIANT_CONFIG.mateHorizon;
+  const brilliantFlags = moves.map((m, i) => {
+    const evalAfter = evals[i + 1];
+    if (evalAfter === undefined) return false;
+    const mateForMover = m.color === 'w' ? evalAfter >= mateBar : evalAfter <= -mateBar;
+    if (!mateForMover) return false;
+    const beforeFen = i === 0 ? startFen : moves[i - 1].fenAfter;
+    return isBrilliantPlayed(beforeFen, m.uci, true);
+  });
+
+  return aggregateAnalysis(evals, bestMoves, moves, brilliantFlags);
 }

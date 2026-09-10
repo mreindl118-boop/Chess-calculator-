@@ -96,6 +96,11 @@ export function SettingsView() {
         {toggle('premove', 'Premove', 'Queue your reply while the engine thinks')}
         {toggle('autoFlip', 'Auto-flip board to the side to move')}
         {toggle('evalBar', 'Eval bar in casual games')}
+        {toggle(
+          'brilliant',
+          'Brilliant Moves (!!)',
+          'Calculator hunts sacrifices that force checkmate',
+        )}
       </section>
 
       <section>

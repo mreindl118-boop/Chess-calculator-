@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { kvGet, kvSet } from '../lib/db/schema';
 import { setSoundEnabled } from '../lib/audio/sounds';
 import { setHapticsEnabled } from '../lib/platform/haptics';
+import type { Magnitude } from '../lib/chess/see';
 
 export type BoardTheme = 'midnight' | 'walnut' | 'forest';
 export type PieceStyle = 'classic' | 'minimal';
@@ -31,6 +32,13 @@ export interface Settings {
    * but reliability-first is the default. Takes effect for the next analysis.
    */
   threadedEngine: boolean;
+  /**
+   * Brilliant Moves: hunt sacrifices that force checkmate and surface them in
+   * the Calculator. Off by default (it costs an extra bounded engine pass).
+   */
+  brilliant: boolean;
+  /** minimum sacrifice magnitude to hunt/show: spicy (minor) / unhinged (rook) / psychotic (queen) */
+  brilliantMin: Magnitude;
 }
 
 const DEFAULTS: Settings = {
@@ -45,6 +53,8 @@ const DEFAULTS: Settings = {
   evalBar: true,
   coordinates: true,
   threadedEngine: false,
+  brilliant: false,
+  brilliantMin: 'spicy',
 };
 
 interface SettingsState extends Settings {
@@ -82,10 +92,12 @@ function pick(s: SettingsState): Settings {
   const {
     boardTheme, pieceStyle, darkMode, sound, haptics,
     legalDots, premove, autoFlip, evalBar, coordinates, threadedEngine,
+    brilliant, brilliantMin,
   } = s;
   return {
     boardTheme, pieceStyle, darkMode, sound, haptics,
     legalDots, premove, autoFlip, evalBar, coordinates, threadedEngine,
+    brilliant, brilliantMin,
   };
 }
 

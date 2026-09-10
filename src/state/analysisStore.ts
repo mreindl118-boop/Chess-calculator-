@@ -13,6 +13,9 @@ import {
   type GameAnalysis,
   type MoveClass,
 } from '../lib/engine/analysis';
+import { findSacrifices, MAGNITUDE_MIN } from '../lib/chess/see';
+import { BRILLIANT_CONFIG, huntBrilliant, type BrilliantLine } from '../lib/engine/brilliant';
+import { useSettings } from './settingsStore';
 
 /** Live grade of the move the user just played, versus the engine's best. */
 export interface MoveVerdict {
@@ -59,6 +62,10 @@ export interface AnalysisState {
   error: string | null;
   /** grade of the last move played on the board, once computed */
   verdict: MoveVerdict | null;
+  /** mate-verified sacrifices for the current position (null = not hunted yet) */
+  brilliant: BrilliantLine[] | null;
+  /** a Brilliant hunt is running for the current position */
+  hunting: boolean;
 
   setRoot: (fen: string, variant?: ChessVariant) => void;
   /** Return to the untouched front-door screen (nothing loaded, engine off). */
@@ -77,10 +84,16 @@ export interface AnalysisState {
   setEditing: (on: boolean) => void;
   legalTargets: (from: Square) => ReturnType<VariantGame['moves']>;
   stopEngine: () => void;
+  /** Re-evaluate whether/what to hunt after the Brilliant setting or magnitude changes. */
+  refreshHunt: () => void;
 }
 
 let tree = new MoveTree(START_FEN);
 let searchGeneration = 0;
+/** Bumped on every position change / toggle so stale Brilliant hunts bail. */
+let huntGeneration = 0;
+let huntTimer: ReturnType<typeof setTimeout> | null = null;
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Depth of the quick full-width pass that ranks the worst moves. */
 const WORST_SCAN_DEPTH = 12;
 /** Minimum gap between committed best-move updates, to keep the list calm. */
@@ -231,6 +244,77 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
   function restart() {
     set({ lines: [], worstLines: [], depth: 0 });
     void runEngine();
+    scheduleHunt();
+  }
+
+  /**
+   * Queue a debounced Brilliant hunt for the current position. Cancels any
+   * pending/running hunt (huntGeneration bump) and clears a stale card first so
+   * there's zero layout shift on navigation. Issues no engine work at all when
+   * the mode is off — satisfying "toggle off → zero hunt searches".
+   */
+  function scheduleHunt() {
+    huntGeneration++;
+    if (huntTimer) {
+      clearTimeout(huntTimer);
+      huntTimer = null;
+    }
+    if (get().brilliant !== null || get().hunting) set({ brilliant: null, hunting: false });
+    const s = get();
+    if (!useSettings.getState().brilliant || !s.engineOn || s.editing) return;
+    const myGen = huntGeneration;
+    const fen = s.fen;
+    const variant = s.variant;
+    huntTimer = setTimeout(() => {
+      huntTimer = null;
+      void runHunt(myGen, fen, variant);
+    }, BRILLIANT_CONFIG.debounceMs);
+  }
+
+  async function runHunt(myGen: number, fen: string, variant: ChessVariant) {
+    if (myGen !== huntGeneration) return;
+    const magnitudeMin = useSettings.getState().brilliantMin;
+    // 1. Detect candidates on the main thread (fast, pure — no engine yet).
+    const eligible = findSacrifices(fen).filter((c) => c.invested >= MAGNITUDE_MIN[magnitudeMin]);
+    if (eligible.length === 0) {
+      if (myGen === huntGeneration) set({ brilliant: [], hunting: false });
+      return;
+    }
+    // 2. Let the primary MultiPV analysis reach a baseline depth first, so the
+    //    normal best moves are already on screen before we borrow the engine.
+    const deadline = Date.now() + BRILLIANT_CONFIG.baselineWaitMs;
+    while (get().depth < BRILLIANT_CONFIG.baselineDepth && Date.now() < deadline) {
+      await sleep(60);
+      if (myGen !== huntGeneration) return;
+    }
+    if (myGen !== huntGeneration) return;
+    set({ hunting: true });
+    // 3. Pause the primary search (frees the analysis-engine mutex), run one
+    //    bounded hunt, then resume the primary.
+    searchGeneration++;
+    getAnalysisEngineRaw().stop();
+    let lines: BrilliantLine[] = [];
+    try {
+      lines = await withAnalysisEngine(async (engine) => {
+        if (myGen !== huntGeneration) return [];
+        return huntBrilliant(engine, { fen, variant, candidates: eligible, magnitudeMin });
+      });
+    } catch {
+      lines = [];
+    }
+    if (myGen !== huntGeneration) return; // navigated away mid-hunt: primary already restarted
+    set({ brilliant: lines, hunting: false });
+    if (get().engineOn && !get().editing) void runEngine();
+  }
+
+  /** Cancel any hunt without resuming the primary (callers that stop the engine). */
+  function cancelHunt() {
+    huntGeneration++;
+    if (huntTimer) {
+      clearTimeout(huntTimer);
+      huntTimer = null;
+    }
+    if (get().brilliant !== null || get().hunting) set({ brilliant: null, hunting: false });
   }
 
   return {
@@ -249,6 +333,8 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     loadedGameId: null,
     error: null,
     verdict: null,
+    brilliant: null,
+    hunting: false,
 
     setRoot: (fen, variant) => {
       tree = new MoveTree(fen);
@@ -277,6 +363,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
       searchGeneration++;
       pendingVerdict = null;
       getAnalysisEngineRaw().stop();
+      cancelHunt();
       tree = new MoveTree(START_FEN);
       set({
         verdict: null,
@@ -394,10 +481,13 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
       const on = !get().engineOn;
       set({ engineOn: on, lines: [], worstLines: [], depth: 0, verdict: null });
       pendingVerdict = null;
-      if (on) void runEngine();
-      else {
+      if (on) {
+        void runEngine();
+        scheduleHunt();
+      } else {
         searchGeneration++;
         getAnalysisEngineRaw().stop();
+        cancelHunt();
       }
     },
 
@@ -490,6 +580,7 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
         searchGeneration++;
         pendingVerdict = null;
         getAnalysisEngineRaw().stop();
+        cancelHunt();
         set({ editing: true, engineOn: false, lines: [], worstLines: [], depth: 0, verdict: null });
       } else {
         set({ editing: false });
@@ -505,7 +596,23 @@ export const useAnalysis = create<AnalysisState>((set, get) => {
     stopEngine: () => {
       searchGeneration++;
       getAnalysisEngineRaw().stop();
+      cancelHunt();
       set({ engineOn: false });
+    },
+
+    refreshHunt: () => {
+      // Setting/magnitude changed. Abort any in-flight hunt; if it had paused
+      // the primary, resume it; then re-queue under the new settings.
+      const wasHunting = get().hunting;
+      cancelHunt();
+      if (wasHunting) {
+        getAnalysisEngineRaw().stop();
+        if (get().engineOn && !get().editing) {
+          searchGeneration++;
+          void runEngine();
+        }
+      }
+      scheduleHunt();
     },
   };
 });

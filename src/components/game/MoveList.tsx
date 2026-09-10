@@ -3,6 +3,7 @@ import type { RecordedMove } from '../../lib/chess/types';
 import type { GameAnalysis, MoveClass } from '../../lib/engine/analysis';
 
 const CLASS_BADGE: Record<MoveClass, { label: string; cls: string } | null> = {
+  brilliant: { label: '!!', cls: 'badge-brilliant' },
   best: null,
   excellent: null,
   good: null,

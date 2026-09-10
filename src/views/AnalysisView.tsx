@@ -13,6 +13,7 @@ import { useNav } from '../state/navStore';
 import { useSettings } from '../state/settingsStore';
 import { scoreToCp } from '../lib/engine/analysis';
 import { explainLine } from '../lib/engine/explain';
+import { sacLabel } from '../lib/engine/brilliant';
 import type { EngineInfo } from '../lib/engine/uci';
 import { playSound } from '../lib/audio/sounds';
 import { START_FEN, type Color, type PieceSymbol, type Square } from '../lib/chess/types';
@@ -152,6 +153,11 @@ export function AnalysisView() {
     ],
     [bestThree, worstThree],
   );
+
+  // The flashiest proven sacrifice takes the spotlight (card + gold arrow).
+  const topBrilliant =
+    settings.brilliant && a.brilliant && a.brilliant.length > 0 ? a.brilliant[0] : null;
+  const sacArrow = topBrilliant ? { from: topBrilliant.from, to: topBrilliant.to } : null;
 
   // ---- editor helpers (operate directly on the FEN) ----
   const boardWrapRef = useRef<HTMLDivElement | null>(null);
@@ -485,6 +491,7 @@ export function AnalysisView() {
                 : null
             }
             arrows={suggestionArrows}
+            sacArrow={a.editing ? null : sacArrow}
             legalTargetsFor={(sq) => (a.editing ? [] : a.legalTargets(sq))}
             onMove={({ from, to }) => attemptMove(from, to)}
             onEditorDrop={a.editing ? editorDrop : undefined}
@@ -688,6 +695,60 @@ export function AnalysisView() {
                 ▶
               </button>
             </div>
+
+            <div className="brilliant-bar">
+              <button
+                className={`btn brilliant-toggle ${settings.brilliant ? 'on' : ''}`}
+                aria-pressed={settings.brilliant}
+                onClick={() => {
+                  settings.update({ brilliant: !settings.brilliant });
+                  a.refreshHunt();
+                }}
+                title="Hunt sacrifices that force checkmate"
+              >
+                <span className="bang">!!</span> Brilliant Moves
+              </button>
+              {settings.brilliant && (
+                <div className="magnitude-seg" role="group" aria-label="Minimum sacrifice">
+                  {(['spicy', 'unhinged', 'psychotic'] as const).map((m) => (
+                    <button
+                      key={m}
+                      className={`seg-btn ${settings.brilliantMin === m ? 'active' : ''}`}
+                      onClick={() => {
+                        settings.update({ brilliantMin: m });
+                        a.refreshHunt();
+                      }}
+                    >
+                      {m === 'spicy' ? 'Spicy' : m === 'unhinged' ? 'Unhinged' : 'Psychotic'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {settings.brilliant && a.hunting && (
+                <span className="hunting-dot" title="Hunting sacrifices…">
+                  hunting…
+                </span>
+              )}
+            </div>
+
+            {settings.brilliant && topBrilliant && (
+              <button
+                className="brilliant-card"
+                onClick={() => attemptMove(topBrilliant.from, topBrilliant.to)}
+                title="Play the sacrifice"
+              >
+                <div className="brilliant-top">
+                  <span className="brilliant-badge">!!</span>
+                  <span className="brilliant-san">{topBrilliant.san}</span>
+                  <span className="brilliant-mate">Mate in {topBrilliant.mateIn}</span>
+                  <span className={`brilliant-chip tier-${topBrilliant.tier}`}>
+                    {sacLabel(topBrilliant.movedType, topBrilliant.invested)}
+                  </span>
+                </div>
+                <p className="brilliant-line">{topBrilliant.sanLine.join(' ')}</p>
+              </button>
+            )}
+
             {a.engineOn && bestThree.length === 0 && (
               <p className="field-hint">Thinking…</p>
             )}
@@ -871,6 +932,7 @@ const VERDICT_META: Record<
   MoveVerdict['cls'],
   { label: string; chip: string }
 > = {
+  brilliant: { label: 'Brilliant', chip: 'v-brilliant' },
   best: { label: 'Best move', chip: 'v-best' },
   excellent: { label: 'Excellent', chip: 'v-excellent' },
   good: { label: 'Good', chip: 'v-good' },

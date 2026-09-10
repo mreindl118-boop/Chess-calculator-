@@ -31,6 +31,8 @@ export interface ChessBoardProps {
   /** ranked suggestion arrows (0 = best); rendered under `arrow`/`hint`.
    *  `worst` draws the arrow in the red "avoid this" palette. */
   arrows?: Array<{ from: Square; to: Square; rank: number; worst?: boolean }>;
+  /** the Brilliant sacrifice move, drawn in gold on top of everything */
+  sacArrow?: { from: Square; to: Square } | null;
   legalTargetsFor?: (from: Square) => UiMove[];
   onMove?: (intent: BoardMoveIntent) => void;
   /** editor mode: report raw drops anywhere incl. off-board */
@@ -120,7 +122,7 @@ function trackPieces(
 export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
   const {
     fen, orientation, interactive, movableColor = 'both',
-    lastMove, checkSquare, premove, hint, arrow, arrows,
+    lastMove, checkSquare, premove, hint, arrow, arrows, sacArrow,
     legalTargetsFor, onMove, onEditorDrop, onSquareTap,
   } = props;
   const settings = useSettings();
@@ -360,6 +362,16 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
         >
           <path d="M0,0.6 L3,2 L0,3.4 Z" className="arrow-best-head" />
         </marker>
+        <marker
+          id="arrowhead-arrow-sac"
+          markerWidth={4}
+          markerHeight={4}
+          refX={2.4}
+          refY={2}
+          orient="auto"
+        >
+          <path d="M0,0.6 L3,2 L0,3.4 Z" className="arrow-sac-head" />
+        </marker>
         {[0, 1, 2].map((r) => (
           <marker
             key={r}
@@ -448,6 +460,7 @@ export const ChessBoard = memo(function ChessBoard(props: ChessBoardProps) {
           )}
       {hint && renderArrow(hint, 'arrow-hint')}
       {arrow && renderArrow(arrow, 'arrow-best')}
+      {sacArrow && renderArrow(sacArrow, 'arrow-sac', `sac-${sacArrow.from}${sacArrow.to}`)}
     </svg>
   );
 });

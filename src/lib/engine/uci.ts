@@ -5,6 +5,10 @@ export interface SearchLimits {
   movetime?: number;
   nodes?: number;
   infinite?: boolean;
+  /** ask the engine to prove a mate within N moves (UCI `go mate N`) */
+  mate?: number;
+  /** restrict the root search to these UCI moves (UCI `go searchmoves ...`) */
+  searchmoves?: string[];
 }
 
 export interface EngineInfo {
@@ -248,8 +252,13 @@ export class StockfishEngine implements UciEngine {
       let cmd = 'go';
       if (limits.infinite) cmd += ' infinite';
       if (limits.depth !== undefined) cmd += ` depth ${limits.depth}`;
+      if (limits.mate !== undefined) cmd += ` mate ${limits.mate}`;
       if (limits.nodes !== undefined) cmd += ` nodes ${limits.nodes}`;
       if (limits.movetime !== undefined) cmd += ` movetime ${limits.movetime}`;
+      // `searchmoves` consumes all remaining tokens, so it must come last.
+      if (limits.searchmoves && limits.searchmoves.length > 0) {
+        cmd += ` searchmoves ${limits.searchmoves.join(' ')}`;
+      }
       this.lastGoCmd = cmd;
       this.send(cmd);
     });
