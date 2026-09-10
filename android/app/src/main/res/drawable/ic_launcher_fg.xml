@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GambitLab knight (from the app's own piece set), gold on the brand.
+     Scaled into the adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="52"
+        android:pivotY="54"
+        android:scaleX="0.6"
+        android:scaleY="0.6"
+        android:translateX="2"
+        android:translateY="0">
+        <path
+            android:fillColor="#E9AE4B"
+            android:pathData="M31,80 C31,64 34,54 42,47 C47,42.5 50,36 50,29 L51,21 C54,23 56.5,26 58,30 C67,33 73,41 75.5,51 C77,57.5 77,63 75.5,67 C74.5,69.7 71.5,69.6 70,67 L66.5,61 C65.5,59.2 63.5,58.8 61.5,60 L58,62 C55,63.7 52,62.3 52,59 C52,57 52.8,55.4 54.5,54 C50,55.5 46.5,59 45,64 C44,67.4 43.6,72 43.6,80 Z" />
+        <path
+            android:fillColor="#E9AE4B"
+            android:pathData="M27,84 Q27,79 33,79 L67,79 Q73,79 73,84 L73,85.5 Q73,87 71,87 L29,87 Q27,87 27,85.5 Z" />
+    </group>
+</vector>

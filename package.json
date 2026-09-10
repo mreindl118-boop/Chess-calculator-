@@ -15,6 +15,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
     "engine:copy": "node scripts/copy-engine.mjs",
     "icons": "node scripts/gen-icons.mjs",
+    "icons:android": "node scripts/gen-android-icons.mjs",
     "android:sync": "npm run build && cap sync android",
     "android:run": "npm run android:sync && cap run android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease"
