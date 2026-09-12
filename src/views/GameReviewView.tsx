@@ -39,7 +39,7 @@ function fmtEval(cp: number): string {
 const uciSquares = (uci: string): { from: Square; to: Square } | null =>
   uci && uci.length >= 4 ? { from: uci.slice(0, 2), to: uci.slice(2, 4) } : null;
 
-function speak(text: string, onDone?: () => void): void {
+function speak(text: string, mood: number, onDone?: () => void): void {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     onDone?.();
     return;
@@ -47,8 +47,11 @@ function speak(text: string, onDone?: () => void): void {
   const synth = window.speechSynthesis;
   synth.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 1.02;
-  u.pitch = 1.25;
+  // Warmer, breathier and a touch quicker the more enraptured she is; flatter
+  // and slower when she's cold.
+  const t = Math.max(0, Math.min(1, mood / 100));
+  u.rate = 0.94 + t * 0.16;
+  u.pitch = 1.02 + t * 0.4;
   const voices = synth.getVoices();
   const pref =
     voices.find((v) =>
@@ -73,7 +76,7 @@ export function GameReviewView() {
   const orientation: Color = settings.autoFlip ? ((fen.split(' ')[1] as Color) ?? 'w') : 'w';
 
   const curMove = viewPly >= 1 && review ? review.moves[viewPly - 1] : null;
-  const mood = review ? moodAt(review.moodSeries, viewPly) : MOOD_START;
+  const mood = review ? moodAt(review.moodSeries, viewPly, review.baseMood) : MOOD_START;
 
   const expression: Expression = curMove
     ? expressionFor(curMove.reviewClass)
@@ -106,7 +109,7 @@ export function GameReviewView() {
   useEffect(() => {
     if (!settings.coachVoice || !curMove) return;
     setSpeaking(true);
-    speak(bubble, () => setSpeaking(false));
+    speak(bubble, mood, () => setSpeaking(false));
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
       setSpeaking(false);
@@ -144,7 +147,7 @@ export function GameReviewView() {
   const speakVerdict = () => {
     if (!verdict) return;
     setSpeaking(true);
-    speak(verdict.line, () => setSpeaking(false));
+    speak(verdict.line, review?.baseMood ?? MOOD_START, () => setSpeaking(false));
   };
 
   return (

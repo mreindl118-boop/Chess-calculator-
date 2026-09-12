@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MOOD_START,
   REVIEW_META,
+  accuracyMood,
   coachLine,
   expressionFor,
   finalVerdict,
@@ -98,23 +98,39 @@ describe('reviewClassify', () => {
 });
 
 describe('mood', () => {
-  it('rewards good play and punishes bad play, clamped to 0..100', () => {
+  it('derives the overall demeanor from accuracy', () => {
+    expect(accuracyMood(95)).toBeGreaterThanOrEqual(82); // smitten territory
+    expect(accuracyMood(60)).toBeGreaterThan(20);
+    expect(accuracyMood(60)).toBeLessThan(45); // cool/neutral
+    expect(accuracyMood(40)).toBe(0);
+    expect(accuracyMood(200)).toBe(100); // clamped
+  });
+
+  it('swings up on good play and down on bad, clamped to 0..100', () => {
     const good: ReviewClass[] = Array(20).fill('brilliant');
     const bad: ReviewClass[] = Array(20).fill('blunder');
-    expect(moodSeries(good).at(-1)).toBe(100);
-    expect(moodSeries(bad).at(-1)).toBe(0);
+    expect(moodSeries(good, 90).at(-1)).toBe(100);
+    expect(moodSeries(bad, 10).at(-1)).toBe(0);
   });
 
-  it('applies each move delta in order', () => {
-    const series = moodSeries(['best', 'blunder']);
-    expect(series[0]).toBe(MOOD_START + REVIEW_META.best.mood);
-    expect(series[1]).toBe(MOOD_START + REVIEW_META.best.mood + REVIEW_META.blunder.mood);
+  it('starts each series from the accuracy baseline plus the first swing', () => {
+    const series = moodSeries(['best', 'blunder'], 80);
+    expect(series[0]).toBe(80 + REVIEW_META.best.mood);
+    // second move: prior swing decays by SWING_RETAIN, then the blunder lands
+    expect(series[1]).toBe(80 + Math.round(REVIEW_META.best.mood * 0.55 + REVIEW_META.blunder.mood));
   });
 
-  it('moodAt returns the starting mood before any move', () => {
-    expect(moodAt([60, 70], 0)).toBe(MOOD_START);
-    expect(moodAt([60, 70], 1)).toBe(60);
-    expect(moodAt([60, 70], 5)).toBe(70);
+  it('relaxes back toward the demeanor after a transient dip', () => {
+    // a single blunder in an otherwise great game recovers over the next moves
+    const s = moodSeries(['blunder', 'good', 'good', 'good', 'good'], 85);
+    expect(s[0]).toBeLessThan(85);
+    expect(s.at(-1)!).toBeGreaterThan(s[0]);
+  });
+
+  it('moodAt returns the demeanor before any move', () => {
+    expect(moodAt([60, 70], 0, 80)).toBe(80);
+    expect(moodAt([60, 70], 1, 80)).toBe(60);
+    expect(moodAt([60, 70], 5, 80)).toBe(70);
   });
 
   it('buckets mood across the full range', () => {

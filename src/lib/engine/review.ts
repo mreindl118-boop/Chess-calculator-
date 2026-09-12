@@ -132,20 +132,36 @@ export function reviewClassify(i: ClassifyInput): ReviewClass {
   return i.engineClass;
 }
 
-/** Mood (0..100) after each move, applying every move's mood delta in order. */
-export function moodSeries(classes: ReviewClass[]): number[] {
+/**
+ * Her overall demeanor for a game, set by its accuracy. This is the baseline
+ * the move-by-move reactions swing around: a beautiful game leaves her warm no
+ * matter the odd slip; a sloppy one leaves her cold even if it has a highlight.
+ */
+export function accuracyMood(accuracy: number): number {
+  return Math.round(clamp((accuracy - 40) * 1.65, 0, 100));
+}
+
+/** How much of the running per-move swing carries into the next move. */
+export const SWING_RETAIN = 0.55;
+
+/**
+ * Mood (0..100) after each move: the accuracy-based demeanor plus a decaying
+ * swing from recent move quality. A brilliancy spikes her up; a blunder dips
+ * her; both relax back toward the game's overall demeanor within a few moves.
+ */
+export function moodSeries(classes: ReviewClass[], baseMood = MOOD_START): number[] {
   const out: number[] = [];
-  let m = MOOD_START;
+  let swing = 0;
   for (const c of classes) {
-    m = clamp(m + REVIEW_META[c].mood, 0, 100);
-    out.push(Math.round(m));
+    swing = swing * SWING_RETAIN + REVIEW_META[c].mood;
+    out.push(clamp(Math.round(baseMood + swing), 0, 100));
   }
   return out;
 }
 
-/** Mood after the first `plies` reviewed moves (0 ⇒ the starting mood). */
-export function moodAt(series: number[], plies: number): number {
-  if (plies <= 0 || series.length === 0) return MOOD_START;
+/** Mood after the first `plies` reviewed moves (0 ⇒ her settled demeanor). */
+export function moodAt(series: number[], plies: number, baseMood = MOOD_START): number {
+  if (plies <= 0 || series.length === 0) return baseMood;
   return series[Math.min(plies, series.length) - 1];
 }
 
@@ -191,26 +207,26 @@ export function expressionFor(cls: ReviewClass): Expression {
 
 const LINES: Record<ReviewClass, string[]> = {
   brilliant: [
-    '{san}?! Be still my heart — a sacrifice that actually works.',
-    'Oh, {san}. You know exactly what that does to me.',
-    'A real brilliancy. I might just swoon.',
+    '{san}… oh, you magnificent thing. Do that again — slowly.',
+    'A real sacrifice, {san}. I am completely, helplessly yours.',
+    'Be still my heart. {san} is the most gorgeous move I have seen all day.',
   ],
   great: [
-    '{san} — the only move, and you found it. Impressive.',
-    'Mm, {san}. Precise. I like precise.',
-    "That's the move. You have my full attention now.",
+    '{san} — the only move on the board and you found it. Be still my heart.',
+    'Mmm, {san}. So precise it gives me chills.',
+    'That is exactly it. You are dangerously good at this, you know that?',
   ],
   best: [
-    '{san}. Textbook. Keep it up.',
-    'Solid — {san} was exactly it.',
-    'Good taste. {san} was best.',
+    '{san}. Flawless taste. I could get very used to this.',
+    'Perfect — {san}. Keep spoiling me like this.',
+    'Best move, obviously. Show-off. I love it.',
   ],
   excellent: [
-    '{san} — nearly perfect.',
-    'Excellent choice.',
-    "Barely a hair off best. I'll allow it.",
+    '{san} — almost perfect, and honestly? Very attractive.',
+    'Excellent. You are making it hard for me to stay professional.',
+    "A hair off best — I'll happily forgive you for that one.",
   ],
-  good: ['{san}. Fine. Nothing wrong with fine.', 'Reasonable enough.', 'Okay, {san} works.'],
+  good: ['{san}. Nice and solid. I approve.', 'Reasonable — I like a steady hand.', 'Okay, {san} works for me.'],
   inaccuracy: [
     '{san}? Eh. There was better.',
     'A little sloppy there.',
@@ -256,12 +272,12 @@ export function finalVerdict(
   const acc = Math.round(accuracy);
   const base: Record<MoodBucket, FinalVerdict> = {
     smitten: {
-      title: 'Smitten ♥',
-      line: `Utterly smitten. Brilliancies, precision, ${acc}% accuracy — play like that and I am yours.`,
+      title: 'Completely Smitten ♥',
+      line: `${acc}% accuracy and you played like THAT? I am utterly, breathlessly yours — take me through another one.`,
     },
     warm: {
-      title: 'Charmed',
-      line: `Charmed. Sharp, confident play at ${acc}% — a few slips, but I enjoyed every minute.`,
+      title: 'Swooning',
+      line: `Oh, I am charmed. ${acc}% — confident, sharp, a little thrilling. Do that again and I am in real trouble.`,
     },
     pleased: {
       title: 'Interested',
@@ -330,6 +346,8 @@ export interface GameReview {
   countsByColor: { w: Record<ReviewClass, number>; b: Record<ReviewClass, number> };
   /** mood after each move (0..100) */
   moodSeries: number[];
+  /** her settled, accuracy-driven demeanor for the whole game (0..100) */
+  baseMood: number;
   finalMood: number;
 }
 
@@ -448,7 +466,10 @@ export async function reviewGame(
     });
   }
 
-  const series = moodSeries(classes);
+  // Overall demeanor comes from the whole game's accuracy; per-move reactions
+  // swing around it.
+  const baseMood = accuracyMood((agg.accuracy.w + agg.accuracy.b) / 2);
+  const series = moodSeries(classes, baseMood);
   return {
     moves: out,
     evals,
@@ -457,6 +478,7 @@ export async function reviewGame(
     counts,
     countsByColor,
     moodSeries: series,
-    finalMood: series.length ? series[series.length - 1] : MOOD_START,
+    baseMood,
+    finalMood: baseMood,
   };
 }
