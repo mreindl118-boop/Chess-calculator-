@@ -1,136 +1,221 @@
-import { memo } from 'react';
+import { memo, useId } from 'react';
 import type { Expression } from '../../lib/engine/review';
 
 /**
- * The Game Review coach — an original, hand-drawn (all-SVG, offline, no
- * external art) anime-style commentator whose face swaps per move quality.
- * Deliberately stylized and tasteful: an expressive coach, nothing more.
+ * The Game Review coach — an original, hand-illustrated (all-SVG, offline,
+ * no external art) anime-style commentator whose face swaps per move quality.
+ * Layered like a real illustration: gradient skin and hair, weighted line
+ * work, lashes, layered iris highlights and soft blush. Deliberately stylized
+ * and tasteful: an expressive coach, nothing more.
  */
 
+type EyeKind = 'open' | 'wide' | 'happy' | 'half' | 'heart' | 'down' | 'sparkle';
+type MouthKind = 'grin' | 'smile' | 'soft' | 'flat' | 'small' | 'frown' | 'open' | 'pout';
+
 interface FaceCfg {
-  brow: number; // vertical offset of eyebrows (— down = angrier/sadder)
-  browTilt: number; // inner-end tilt in degrees (+ = worried/sad, − = cross)
-  eye: 'open' | 'wide' | 'happy' | 'half' | 'heart' | 'down';
-  mouth: 'smile' | 'grin' | 'soft' | 'flat' | 'small' | 'frown' | 'open' | 'wobble';
+  brow: number; // vertical offset of eyebrows (+ = lower)
+  browTilt: number; // inner-end tilt (+ = worried/sad, − = cross)
+  eye: EyeKind;
+  mouth: MouthKind;
   blush: number; // 0..1
 }
 
 const FACES: Record<Expression, FaceCfg> = {
-  smitten: { brow: -3, browTilt: 6, eye: 'heart', mouth: 'grin', blush: 1 },
-  delighted: { brow: -2, browTilt: 4, eye: 'happy', mouth: 'grin', blush: 0.7 },
-  pleased: { brow: -1, browTilt: 3, eye: 'open', mouth: 'smile', blush: 0.35 },
-  neutral: { brow: 0, browTilt: 0, eye: 'open', mouth: 'soft', blush: 0.15 },
+  smitten: { brow: -3, browTilt: 7, eye: 'heart', mouth: 'grin', blush: 1 },
+  delighted: { brow: -2, browTilt: 4, eye: 'happy', mouth: 'grin', blush: 0.8 },
+  pleased: { brow: -1, browTilt: 3, eye: 'sparkle', mouth: 'smile', blush: 0.4 },
+  neutral: { brow: 0, browTilt: 0, eye: 'open', mouth: 'soft', blush: 0.18 },
   thinking: { brow: 1, browTilt: -3, eye: 'half', mouth: 'small', blush: 0.1 },
-  unimpressed: { brow: 2, browTilt: -6, eye: 'half', mouth: 'flat', blush: 0 },
-  wince: { brow: 3, browTilt: 8, eye: 'half', mouth: 'small', blush: 0.2 },
-  disappointed: { brow: 4, browTilt: 12, eye: 'down', mouth: 'frown', blush: 0 },
-  shocked: { brow: -5, browTilt: 2, eye: 'wide', mouth: 'open', blush: 0.25 },
+  unimpressed: { brow: 2, browTilt: -7, eye: 'half', mouth: 'flat', blush: 0 },
+  wince: { brow: 3, browTilt: 9, eye: 'half', mouth: 'pout', blush: 0.25 },
+  disappointed: { brow: 4, browTilt: 13, eye: 'down', mouth: 'frown', blush: 0 },
+  shocked: { brow: -6, browTilt: 2, eye: 'wide', mouth: 'open', blush: 0.3 },
 };
 
-const SKIN = '#f4d6c4';
-const SKIN_SH = '#e7bda8';
-const HAIR = '#5b6ee0';
-const HAIR_SH = '#4657cf';
-const HAIR_HI = '#93a2ff';
-const GOLD = '#e9ae4b';
-const IRIS = '#e9ae4b';
-const IRIS_SH = '#b9832f';
-const BLUSH = '#ef8fa0';
-const LINE = '#3a2f4a';
-const MOUTH_IN = '#c25b6b';
+const FACE_PATH =
+  'M56 104 C54 150 74 186 110 194 C146 186 166 150 164 104 C164 56 140 34 110 34 C80 34 56 56 56 104 Z';
+// Broad bang strands: tips reach the top lids, the gaps between them stay
+// shallow so the forehead only peeks through as small notches.
+const BANGS_PATH =
+  'M40 112 Q52 84 66 108 Q80 80 96 110 Q110 82 124 110 Q140 80 156 108 Q168 84 180 112 C186 48 144 20 110 20 C76 20 34 48 40 112 Z';
 
-function Eye({ x, cfg }: { x: number; cfg: FaceCfg }) {
-  const y = 122;
+const LINE = '#2f2438';
+const LINE_SOFT = '#5a4a66';
+const MOUTH_IN = '#b84d63';
+const TEETH = '#fff5f2';
+const BLUSH = '#f28aa0';
+const HEART = '#ff5f7e';
+
+function Eye({ x, cfg, ids, side }: { x: number; cfg: FaceCfg; ids: Ids; side: 1 | -1 }) {
+  const y = 126;
+  const lashX = x + side * 15; // outer corner
+  const lash = (
+    <path
+      d={`M${lashX - side * 2} ${y - 9} Q${lashX + side * 3} ${y - 12} ${lashX + side * 5} ${y - 15}`}
+      stroke={LINE}
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      fill="none"
+    />
+  );
+
   if (cfg.eye === 'happy') {
-    // upturned closed "^" eyes
-    return <path d={`M${x - 12} ${y + 3} Q${x} ${y - 12} ${x + 12} ${y + 3}`} className="coach-stroke" />;
+    return (
+      <g>
+        <path
+          d={`M${x - 13} ${y + 2} Q${x} ${y - 14} ${x + 13} ${y + 2}`}
+          stroke={LINE}
+          strokeWidth={3}
+          strokeLinecap="round"
+          fill="none"
+        />
+        {lash}
+      </g>
+    );
   }
   if (cfg.eye === 'half') {
     return (
       <g>
-        <path d={`M${x - 12} ${y - 3} Q${x} ${y + 9} ${x + 12} ${y - 3}`} className="coach-stroke" />
-        <line x1={x - 12} y1={y - 4} x2={x + 12} y2={y - 4} className="coach-stroke" />
+        {/* white sliver + iris peeking under a heavy lid */}
+        <clipPath id={`${ids.clip}-${side}`}>
+          <path d={`M${x - 13} ${y - 2} Q${x} ${y + 12} ${x + 13} ${y - 2} Z`} />
+        </clipPath>
+        <path d={`M${x - 13} ${y - 2} Q${x} ${y + 12} ${x + 13} ${y - 2} Z`} fill="#fff" />
+        <g clipPath={`url(#${ids.clip}-${side})`}>
+          <ellipse cx={x} cy={y + 1} rx={8.5} ry={10} fill={`url(#${ids.iris})`} />
+          <ellipse cx={x} cy={y + 2} rx={3.6} ry={5} fill={LINE} />
+        </g>
+        <path
+          d={`M${x - 14} ${y - 2} Q${x} ${y - 8} ${x + 14} ${y - 2}`}
+          stroke={LINE}
+          strokeWidth={3.2}
+          strokeLinecap="round"
+          fill="none"
+        />
+        {lash}
       </g>
     );
   }
+
+  const wide = cfg.eye === 'wide';
   const heart = cfg.eye === 'heart';
-  const rx = cfg.eye === 'wide' ? 15 : 13;
-  const ry = cfg.eye === 'wide' ? 17 : 15;
+  const rx = wide ? 15 : 13;
+  const ry = wide ? 18 : 15;
   const pupilY = cfg.eye === 'down' ? y + 4 : y;
+  const irisR = wide ? 8 : 10;
   return (
     <g>
-      <ellipse cx={x} cy={y} rx={rx} ry={ry} fill="#fff" stroke={LINE} strokeWidth={1.6} />
+      <ellipse cx={x} cy={y} rx={rx} ry={ry} fill="#fff" />
       {heart ? (
         <path
-          d={`M${x} ${pupilY + 7} C${x - 11} ${pupilY - 4} ${x - 5} ${pupilY - 11} ${x} ${pupilY - 5} C${x + 5} ${pupilY - 11} ${x + 11} ${pupilY - 4} ${x} ${pupilY + 7} Z`}
-          fill="#ff5d7a"
+          d={`M${x} ${pupilY + 9} C${x - 13} ${pupilY - 3} ${x - 6} ${pupilY - 13} ${x} ${pupilY - 6} C${x + 6} ${pupilY - 13} ${x + 13} ${pupilY - 3} ${x} ${pupilY + 9} Z`}
+          fill={HEART}
         />
       ) : (
         <>
-          <circle cx={x} cy={pupilY} r={cfg.eye === 'wide' ? 6.5 : 9} fill={IRIS} />
-          <circle cx={x} cy={pupilY} r={cfg.eye === 'wide' ? 3.5 : 5} fill={IRIS_SH} />
-          <circle cx={x} cy={pupilY} r={cfg.eye === 'wide' ? 2 : 3} fill={LINE} />
-          <circle cx={x + 3} cy={pupilY - 4} r={2.2} fill="#fff" />
+          <ellipse cx={x} cy={pupilY} rx={irisR} ry={irisR + 2.5} fill={`url(#${ids.iris})`} />
+          <ellipse cx={x} cy={pupilY + 1} rx={wide ? 3.2 : 4.4} ry={wide ? 4.5 : 6} fill={LINE} />
+          {/* layered highlights */}
+          <circle cx={x - 3.5} cy={pupilY - 5} r={wide ? 2.6 : 3.4} fill="#fff" />
+          <circle cx={x + 4} cy={pupilY + 4.5} r={1.6} fill="#fff" opacity={0.9} />
+          {cfg.eye === 'sparkle' && (
+            <path
+              d={`M${x + 5} ${pupilY - 7} l1.2 2.2 2.2 1.2 -2.2 1.2 -1.2 2.2 -1.2 -2.2 -2.2 -1.2 2.2 -1.2 Z`}
+              fill="#fff"
+            />
+          )}
         </>
       )}
+      {/* upper lid: heavy weighted line */}
+      <path
+        d={`M${x - 14} ${y - 4} Q${x} ${y - ry - 4} ${x + 14} ${y - 4}`}
+        stroke={LINE}
+        strokeWidth={3.4}
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* lower lid: soft thin line */}
+      <path
+        d={`M${x - 10} ${y + ry - 3} Q${x} ${y + ry + 2} ${x + 10} ${y + ry - 3}`}
+        stroke={LINE_SOFT}
+        strokeWidth={1.3}
+        strokeLinecap="round"
+        fill="none"
+      />
+      {lash}
     </g>
   );
 }
 
-function mouthPath(kind: FaceCfg['mouth']): React.ReactNode {
+function Mouth({ kind }: { kind: MouthKind }) {
   const x = 110;
-  const y = 162;
+  const y = 166;
+  const stroke = { stroke: LINE, strokeLinecap: 'round' as const, fill: 'none' };
   switch (kind) {
     case 'grin':
       return (
-        <path
-          d={`M${x - 15} ${y - 2} Q${x} ${y + 16} ${x + 15} ${y - 2} Q${x} ${y + 5} ${x - 15} ${y - 2} Z`}
-          fill={MOUTH_IN}
-          stroke={LINE}
-          strokeWidth={1.4}
-        />
+        <g>
+          <path
+            d={`M${x - 15} ${y - 2} Q${x} ${y + 18} ${x + 15} ${y - 2} Q${x} ${y + 4} ${x - 15} ${y - 2} Z`}
+            fill={MOUTH_IN}
+          />
+          <path d={`M${x - 10} ${y} Q${x} ${y + 4} ${x + 10} ${y} L${x + 8} ${y + 3} Q${x} ${y + 6} ${x - 8} ${y + 3} Z`} fill={TEETH} />
+          <path d={`M${x - 15} ${y - 2} Q${x} ${y + 18} ${x + 15} ${y - 2}`} {...stroke} strokeWidth={2} />
+        </g>
       );
     case 'smile':
-      return <path d={`M${x - 12} ${y - 1} Q${x} ${y + 10} ${x + 12} ${y - 1}`} className="coach-stroke" />;
+      return <path d={`M${x - 12} ${y - 1} Q${x} ${y + 11} ${x + 12} ${y - 1}`} {...stroke} strokeWidth={2.2} />;
     case 'soft':
-      return <path d={`M${x - 9} ${y} Q${x} ${y + 5} ${x + 9} ${y}`} className="coach-stroke" />;
+      return <path d={`M${x - 8} ${y} Q${x} ${y + 5} ${x + 8} ${y}`} {...stroke} strokeWidth={2} />;
     case 'flat':
-      return <line x1={x - 11} y1={y + 1} x2={x + 11} y2={y + 1} className="coach-stroke" />;
+      return <path d={`M${x - 10} ${y + 1} L${x + 10} ${y + 1}`} {...stroke} strokeWidth={2} />;
     case 'small':
-      return <path d={`M${x - 5} ${y + 1} Q${x} ${y + 4} ${x + 5} ${y + 1}`} className="coach-stroke" />;
-    case 'frown':
-      return <path d={`M${x - 11} ${y + 5} Q${x} ${y - 5} ${x + 11} ${y + 5}`} className="coach-stroke" />;
-    case 'wobble':
+      return <path d={`M${x - 5} ${y + 1} Q${x} ${y + 4} ${x + 5} ${y + 1}`} {...stroke} strokeWidth={2} />;
+    case 'pout':
       return (
         <path
-          d={`M${x - 12} ${y + 3} Q${x - 6} ${y - 3} ${x} ${y + 3} Q${x + 6} ${y + 9} ${x + 12} ${y + 3}`}
-          className="coach-stroke"
+          d={`M${x - 8} ${y + 3} Q${x - 4} ${y - 2} ${x} ${y + 2} Q${x + 4} ${y + 6} ${x + 8} ${y + 3}`}
+          {...stroke}
+          strokeWidth={2}
         />
       );
+    case 'frown':
+      return <path d={`M${x - 11} ${y + 5} Q${x} ${y - 5} ${x + 11} ${y + 5}`} {...stroke} strokeWidth={2.2} />;
     case 'open':
       return (
-        <ellipse cx={x} cy={y + 3} rx={7} ry={10} fill={MOUTH_IN} stroke={LINE} strokeWidth={1.4} />
+        <g>
+          <ellipse cx={x} cy={y + 4} rx={7} ry={10} fill={MOUTH_IN} />
+          <ellipse cx={x} cy={y + 4} rx={7} ry={10} {...stroke} strokeWidth={1.8} />
+        </g>
       );
   }
 }
 
 function Brow({ x, cfg, side }: { x: number; cfg: FaceCfg; side: 1 | -1 }) {
-  const y = 96 + cfg.brow;
-  // inner end toward the nose lifts/drops by tilt
-  const innerDy = cfg.browTilt * side * -0.6;
-  const inner = side === 1 ? x + 12 : x - 12;
-  const outer = side === 1 ? x - 12 : x + 12;
+  const y = 100 + cfg.brow;
+  const innerDy = cfg.browTilt * -0.6;
+  const inner = x - side * 13;
+  const outer = x + side * 13;
+  // tapered brow: thick at the inner-middle, thin at the outer tip
   return (
-    <line
-      x1={inner}
-      y1={y + innerDy}
-      x2={outer}
-      y2={y}
-      className="coach-stroke"
+    <path
+      d={`M${inner} ${y + innerDy} Q${x} ${y - 3} ${outer} ${y + 1}`}
+      stroke={LINE}
       strokeWidth={3}
       strokeLinecap="round"
+      fill="none"
     />
   );
+}
+
+interface Ids {
+  skin: string;
+  hair: string;
+  hairHi: string;
+  iris: string;
+  clip: string;
+  blush: string;
+  face: string;
 }
 
 export const CoachAvatar = memo(function CoachAvatar({
@@ -143,6 +228,17 @@ export const CoachAvatar = memo(function CoachAvatar({
   size?: number;
 }) {
   const cfg = FACES[expression];
+  const uid = useId().replace(/:/g, '');
+  const ids: Ids = {
+    skin: `ca-skin-${uid}`,
+    hair: `ca-hair-${uid}`,
+    hairHi: `ca-hairhi-${uid}`,
+    iris: `ca-iris-${uid}`,
+    clip: `ca-clip-${uid}`,
+    blush: `ca-blush-${uid}`,
+    face: `ca-face-${uid}`,
+  };
+
   return (
     <svg
       className={`coach-avatar${speaking ? ' speaking' : ''}`}
@@ -152,53 +248,122 @@ export const CoachAvatar = memo(function CoachAvatar({
       role="img"
       aria-label={`coach looking ${expression}`}
     >
-      {/* back hair */}
+      <defs>
+        <linearGradient id={ids.skin} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fbe3d3" />
+          <stop offset="1" stopColor="#f1c9b3" />
+        </linearGradient>
+        <linearGradient id={ids.hair} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#7b7cf0" />
+          <stop offset="0.55" stopColor="#5560dc" />
+          <stop offset="1" stopColor="#3b45b8" />
+        </linearGradient>
+        <linearGradient id={ids.hairHi} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#c4c9ff" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#dfe2ff" stopOpacity="0.85" />
+          <stop offset="1" stopColor="#c4c9ff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id={ids.iris} cx="0.5" cy="0.35" r="0.65">
+          <stop offset="0" stopColor="#ffd98a" />
+          <stop offset="0.55" stopColor="#e9a63f" />
+          <stop offset="1" stopColor="#8d5a14" />
+        </radialGradient>
+        <radialGradient id={ids.blush} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor={BLUSH} stopOpacity="0.85" />
+          <stop offset="1" stopColor={BLUSH} stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
+      {/* back hair — big soft volume */}
       <path
-        d="M40 118 C36 60 70 22 110 22 C150 22 184 60 180 118 C184 160 176 210 160 234 L60 234 C44 210 36 160 40 118 Z"
-        fill={HAIR_SH}
+        d="M34 122 C28 48 70 14 110 14 C150 14 192 48 186 122 C192 172 178 222 168 238 L52 238 C42 222 28 172 34 122 Z"
+        fill={`url(#${ids.hair})`}
       />
-      {/* shoulders / collar */}
-      <path d="M58 236 C64 200 88 186 110 186 C132 186 156 200 162 236 Z" fill="#2b2f3a" />
-      <path d="M110 186 L100 210 L110 224 L120 210 Z" fill={GOLD} opacity={0.9} />
-      {/* neck */}
-      <path d="M96 168 L96 190 Q110 200 124 190 L124 168 Z" fill={SKIN_SH} />
+      <path
+        d="M40 130 C44 180 52 214 58 236 L74 236 C64 206 58 170 60 130 Z"
+        fill="#3b45b8"
+        opacity={0.45}
+      />
+      <path
+        d="M180 130 C176 180 168 214 162 236 L146 236 C156 206 162 170 160 130 Z"
+        fill="#3b45b8"
+        opacity={0.45}
+      />
+
+      {/* shoulders / blouse */}
+      <path d="M52 240 C58 202 84 188 110 188 C136 188 162 202 168 240 Z" fill="#2a2d3d" />
+      <path d="M92 190 L110 214 L128 190 L120 188 L110 202 L100 188 Z" fill="#f4ede6" />
+      <path d="M110 214 L104 236 L116 236 Z" fill="#e9ae4b" opacity={0.95} />
+
+      {/* neck with shadow */}
+      <path d="M96 170 L96 194 Q110 206 124 194 L124 170 Z" fill="#e5b79f" />
+
       {/* face */}
-      <ellipse cx={110} cy={120} rx={60} ry={68} fill={SKIN} />
-      <path d="M50 120 Q52 168 92 182 Q70 168 66 120 Z" fill={SKIN_SH} opacity={0.5} />
-      {/* ears */}
-      <ellipse cx={50} cy={124} rx={9} ry={13} fill={SKIN} />
-      <ellipse cx={170} cy={124} rx={9} ry={13} fill={SKIN} />
-      {/* front hair / bangs */}
-      <path
-        d="M42 116 C36 58 72 24 110 24 C148 24 184 58 178 116 C170 92 156 78 150 96 C146 74 128 66 122 90 C118 66 102 66 98 90 C92 68 74 74 70 96 C64 78 50 92 42 116 Z"
-        fill={HAIR}
-      />
-      <path d="M150 96 C156 78 170 92 178 116 C176 96 168 82 158 82 Z" fill={HAIR_HI} opacity={0.7} />
-      {/* side locks */}
-      <path d="M42 116 C40 150 44 176 54 194 L66 190 C58 168 56 140 58 116 Z" fill={HAIR} />
-      <path d="M178 116 C180 150 176 176 166 194 L154 190 C162 168 164 140 162 116 Z" fill={HAIR} />
-      {/* hair clip */}
-      <g transform="translate(146 92) rotate(24)">
-        <rect x={-3} y={-9} width={6} height={18} rx={3} fill={GOLD} />
-        <rect x={-9} y={-3} width={18} height={6} rx={3} fill={GOLD} />
+      <clipPath id={ids.face}>
+        <path d={FACE_PATH} />
+      </clipPath>
+      <path d={FACE_PATH} fill={`url(#${ids.skin})`} />
+      {/* cheek + jaw shading */}
+      <path d="M58 118 Q60 166 96 188 Q74 172 68 118 Z" fill="#e7b39c" opacity={0.35} />
+      <path d="M162 118 Q160 166 124 188 Q146 172 152 118 Z" fill="#e7b39c" opacity={0.25} />
+      {/* bangs cast shadow: the bangs' own silhouette, offset down, clipped to the face */}
+      <g clipPath={`url(#${ids.face})`}>
+        <path d={BANGS_PATH} transform="translate(0 9)" fill="#d3987c" opacity={0.42} />
       </g>
+
+      {/* ears */}
+      <ellipse cx={55} cy={126} rx={8} ry={12} fill="#f4cdb8" />
+      <ellipse cx={165} cy={126} rx={8} ry={12} fill="#f4cdb8" />
+
+      {/* front hair: bangs in flowing strands */}
+      <path d={BANGS_PATH} fill={`url(#${ids.hair})`} />
+      {/* strand separations */}
+      <path d="M72 96 Q84 100 92 108" stroke="#3b45b8" strokeWidth={1.4} fill="none" opacity={0.5} />
+      <path d="M148 96 Q136 100 128 108" stroke="#3b45b8" strokeWidth={1.4} fill="none" opacity={0.5} />
+      <path d="M110 84 Q112 96 118 108" stroke="#3b45b8" strokeWidth={1.2} fill="none" opacity={0.4} />
+      {/* shine band */}
+      <path d="M60 64 C80 40 140 40 168 64 C142 54 84 54 60 64 Z" fill={`url(#${ids.hairHi})`} />
+      {/* ahoge */}
+      <path d="M106 22 C100 8 118 4 122 14 C114 12 110 16 106 22 Z" fill="#7b7cf0" />
+
+      {/* side locks in front of the ears */}
+      <path d="M42 112 C38 150 42 184 54 204 L68 198 C58 172 56 140 60 112 Z" fill={`url(#${ids.hair})`} />
+      <path d="M178 112 C182 150 178 184 166 204 L152 198 C162 172 164 140 160 112 Z" fill={`url(#${ids.hair})`} />
+
+      {/* hair clip */}
+      <g transform="translate(150 94) rotate(26)">
+        <rect x={-3} y={-10} width={6} height={20} rx={3} fill="#e9ae4b" />
+        <rect x={-10} y={-3} width={20} height={6} rx={3} fill="#e9ae4b" />
+        <circle cx={0} cy={0} r={2.2} fill="#fff3d6" />
+      </g>
+
       {/* brows */}
       <Brow x={86} cfg={cfg} side={-1} />
       <Brow x={134} cfg={cfg} side={1} />
+
       {/* eyes */}
-      <Eye x={86} cfg={cfg} />
-      <Eye x={134} cfg={cfg} />
-      {/* nose */}
-      <path d="M108 140 Q110 146 114 144" className="coach-stroke" strokeWidth={1.4} fill="none" />
-      {/* blush */}
+      <Eye x={86} cfg={cfg} ids={ids} side={-1} />
+      <Eye x={134} cfg={cfg} ids={ids} side={1} />
+
+      {/* nose: a single soft accent */}
+      <path d="M109 146 Q112 150 114 147" stroke={LINE_SOFT} strokeWidth={1.6} strokeLinecap="round" fill="none" />
+
+      {/* blush: soft radial glow + anime hatch lines at high intensity */}
       {cfg.blush > 0 && (
-        <g opacity={cfg.blush} fill={BLUSH}>
-          <ellipse cx={74} cy={150} rx={12} ry={7} />
-          <ellipse cx={146} cy={150} rx={12} ry={7} />
+        <g opacity={cfg.blush}>
+          <ellipse cx={74} cy={152} rx={16} ry={9} fill={`url(#${ids.blush})`} />
+          <ellipse cx={146} cy={152} rx={16} ry={9} fill={`url(#${ids.blush})`} />
+          {cfg.blush >= 0.7 && (
+            <g stroke="#e8778f" strokeWidth={1.3} strokeLinecap="round" opacity={0.8}>
+              <path d="M68 156 l4 -6 M74 157 l4 -6 M80 156 l4 -6" />
+              <path d="M138 156 l4 -6 M144 157 l4 -6 M150 156 l4 -6" />
+            </g>
+          )}
         </g>
       )}
+
       {/* mouth */}
-      {mouthPath(cfg.mouth)}
+      <Mouth kind={cfg.mouth} />
     </svg>
   );
 });
