@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import { useChess } from './state/chessStore';
 import { useAnalysis } from './state/analysisStore';
+import { useReview } from './state/reviewStore';
 import { useNav, type View } from './state/navStore';
 import { useSettings } from './state/settingsStore';
 import { useProfiles } from './state/profilesStore';
@@ -10,6 +11,7 @@ import { HomeView } from './views/HomeView';
 import { PlayView } from './views/PlayView';
 import { CheckersView } from './views/CheckersView';
 import { AnalysisView } from './views/AnalysisView';
+import { GameReviewView } from './views/GameReviewView';
 import { LibraryView } from './views/LibraryView';
 import { StatsView } from './views/StatsView';
 import { PuzzlesView } from './views/PuzzlesView';
@@ -31,6 +33,13 @@ function TabIcon({ name }: { name: View }) {
         <svg className="tab-icon-svg" viewBox="0 0 24 24">
           <circle cx={10.5} cy={10.5} r={6.2} />
           <path d="M15.2 15.2 L20.5 20.5 M8 10.5 L13 10.5 M10.5 8 L10.5 13" />
+        </svg>
+      );
+    case 'review': // speech bubble with a heart
+      return (
+        <svg className="tab-icon-svg" viewBox="0 0 24 24">
+          <path d="M4 5.5 L20 5.5 L20 15.5 L12.5 15.5 L8.5 19 L8.5 15.5 L4 15.5 Z" />
+          <path d="M12 9 C11.1 7.7 9 8.2 9 9.9 C9 11.4 12 13.2 12 13.2 C12 13.2 15 11.4 15 9.9 C15 8.2 12.9 7.7 12 9 Z" />
         </svg>
       );
     case 'library': // book
@@ -58,6 +67,7 @@ function TabIcon({ name }: { name: View }) {
 const TABS: Array<{ view: View; label: string }> = [
   { view: 'home', label: 'Play' },
   { view: 'analysis', label: 'Calculate' },
+  { view: 'review', label: 'Review' },
   { view: 'library', label: 'Games' },
   { view: 'stats', label: 'Progress' },
   { view: 'settings', label: 'Settings' },
@@ -102,6 +112,10 @@ export default function App() {
         if (a.editing) return;
         if (e.key === 'ArrowLeft') a.back();
         if (e.key === 'ArrowRight') a.forward();
+      } else if (view === 'review') {
+        const r = useReview.getState();
+        if (e.key === 'ArrowLeft') r.prev();
+        if (e.key === 'ArrowRight') r.next();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -117,6 +131,7 @@ export default function App() {
           {view === 'play' && <PlayView />}
           {view === 'checkers' && <CheckersView />}
           {view === 'analysis' && <AnalysisView />}
+          {view === 'review' && <GameReviewView />}
           {view === 'library' && <LibraryView />}
           {view === 'stats' && <StatsView />}
           {view === 'puzzles' && <PuzzlesView />}

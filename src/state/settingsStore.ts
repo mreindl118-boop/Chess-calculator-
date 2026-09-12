@@ -39,6 +39,8 @@ export interface Settings {
   brilliant: boolean;
   /** minimum sacrifice magnitude to hunt/show: spicy (minor) / unhinged (rook) / psychotic (queen) */
   brilliantMin: Magnitude;
+  /** Game Review coach reads her verdict aloud (browser speech synthesis). */
+  coachVoice: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -55,6 +57,7 @@ const DEFAULTS: Settings = {
   threadedEngine: false,
   brilliant: false,
   brilliantMin: 'spicy',
+  coachVoice: false,
 };
 
 interface SettingsState extends Settings {
@@ -92,12 +95,12 @@ function pick(s: SettingsState): Settings {
   const {
     boardTheme, pieceStyle, darkMode, sound, haptics,
     legalDots, premove, autoFlip, evalBar, coordinates, threadedEngine,
-    brilliant, brilliantMin,
+    brilliant, brilliantMin, coachVoice,
   } = s;
   return {
     boardTheme, pieceStyle, darkMode, sound, haptics,
     legalDots, premove, autoFlip, evalBar, coordinates, threadedEngine,
-    brilliant, brilliantMin,
+    brilliant, brilliantMin, coachVoice,
   };
 }
 

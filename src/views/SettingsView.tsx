@@ -101,6 +101,7 @@ export function SettingsView() {
           'Brilliant Moves (!!)',
           'Calculator hunts sacrifices that force checkmate',
         )}
+        {toggle('coachVoice', 'Coach voice', 'Game Review coach reads her verdict aloud')}
       </section>
 
       <section>

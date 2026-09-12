@@ -5,6 +5,7 @@ export type View =
   | 'play'
   | 'checkers'
   | 'analysis'
+  | 'review'
   | 'library'
   | 'stats'
   | 'puzzles'
