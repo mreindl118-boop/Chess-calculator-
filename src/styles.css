@@ -2303,3 +2303,15 @@ textarea {
   justify-content: center;
   padding: 4px 0 8px;
 }
+
+/* Brilliant hunt feedback */
+.hunt-none {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+.hunt-example {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+  margin-left: auto;
+}

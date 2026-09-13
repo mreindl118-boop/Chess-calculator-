@@ -14,6 +14,9 @@ import { useSettings } from '../state/settingsStore';
 import { scoreToCp } from '../lib/engine/analysis';
 import { explainLine } from '../lib/engine/explain';
 import { sacLabel } from '../lib/engine/brilliant';
+
+/** Philidor's smothered mate: Qg8+! Rxg8 Nf7# — a queen sac that forces mate, for the "Try an example" button. */
+const BRILLIANT_DEMO_FEN = '5r1k/6pp/7N/8/2Q5/8/8/7K w - - 0 1';
 import type { EngineInfo } from '../lib/engine/uci';
 import { playSound } from '../lib/audio/sounds';
 import { START_FEN, type Color, type PieceSymbol, type Square } from '../lib/chess/types';
@@ -733,6 +736,20 @@ export function AnalysisView() {
                 <span className="hunting-dot" title="Hunting sacrifices…">
                   hunting…
                 </span>
+              )}
+              {settings.brilliant && !a.hunting && a.brilliant !== null && a.brilliant.length === 0 && (
+                <span className="hunt-none" title="!! only fires when a sacrifice wins by force">
+                  no mate-forcing sacrifice here
+                </span>
+              )}
+              {settings.brilliant && (
+                <button
+                  className="btn subtle hunt-example"
+                  onClick={() => a.setRoot(BRILLIANT_DEMO_FEN, 'custom')}
+                  title="Load a position where a queen sacrifice forces mate"
+                >
+                  Try an example
+                </button>
               )}
             </div>
 
